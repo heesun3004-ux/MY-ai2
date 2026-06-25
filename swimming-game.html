@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수영 게임 - 물에 빠진 사람 구하기 1:1 대결</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #87CEEB, #1E90FF);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #gameHeader {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #gameHeader h1 {
+            font-size: 1.8em;
+        }
+
+        #scoreBoard {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .player-score {
+            padding: 8px 15px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .player1-score {
+            border: 3px solid #FF6B6B;
+        }
+
+        .player2-score {
+            border: 3px solid #4ECDC4;
+        }
+
+        .rescue-count {
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+
+        .game-info {
+            padding: 8px 15px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            border: 3px solid #FFD700;
+        }
+
+        #gameCanvas {
+            border: 5px solid #1E90FF;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.3);
+            outline: none;
+        }
+
+        #gameCanvas:focus {
+            box-shadow: 0 0 30px rgba(0,0,0,0.3), 0 0 20px rgba(78, 205, 196, 0.5);
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            margin-top: 12px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .control-info {
+            text-align: center;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            font-size: 0.85em;
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        #startScreen h1 {
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        #startScreen .rules {
+            background: rgba(255,255,255,0.1);
+            padding: 20px 30px;
+            border-radius: 15px;
+            margin: 15px 0;
+            max-width: 700px;
+        }
+
+        #startScreen .rules h2 {
+            color: #FFD700;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        #startScreen .rules ul {
+            color: #DDD;
+            list-style: none;
+            line-height: 1.8;
+        }
+
+        #startScreen .rules li::before {
+            content: "🌊 ";
+        }
+
+        #startScreen .controls-section {
+            display: flex;
+            gap: 40px;
+            margin: 15px 0;
+        }
+
+        #startScreen .player-controls {
+            background: rgba(255,255,255,0.1);
+            padding: 15px 25px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        #startScreen .player-controls h3 {
+            margin-bottom: 8px;
+            font-size: 1.2em;
+        }
+
+        #startScreen .player-controls.p1 {
+            border: 2px solid #FF6B6B;
+        }
+
+        #startScreen .player-controls.p1 h3 {
+            color: #FF6B6B;
+        }
+
+        #startScreen .player-controls.p2 {
+            border: 2px solid #4ECDC4;
+        }
+
+        #startScreen .player-controls.p2 h3 {
+            color: #4ECDC4;
+        }
+
+        #startScreen .player-controls p {
+            color: #DDD;
+            font-size: 0.9em;
+        }
+
+        #startBtn {
+            padding: 15px 50px;
+            font-size: 1.5em;
+            background: linear-gradient(to right, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #startBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        }
+
+        #gameOverScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #gameOverScreen.show {
+            display: flex;
+        }
+
+        #gameOverScreen h1 {
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        #resultBox {
+            background: rgba(255,255,255,0.1);
+            padding: 25px 40px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #winnerText {
+            font-size: 2em;
+            color: #FFD700;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .result-detail {
+            display: flex;
+            gap: 50px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .result-player {
+            text-align: center;
+            padding: 15px 25px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .result-player.p1 {
+            border: 2px solid #FF6B6B;
+        }
+
+        .result-player.p2 {
+            border: 2px solid #4ECDC4;
+        }
+
+        .result-player h3 {
+            font-size: 1.2em;
+            margin-bottom: 8px;
+        }
+
+        .result-player.p1 h3 {
+            color: #FF6B6B;
+        }
+
+        .result-player.p2 h3 {
+            color: #4ECDC4;
+        }
+
+        .result-player .stats {
+            color: white;
+            font-size: 1.1em;
+        }
+
+        .result-player .rescued-list {
+            color: #AAA;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        #restartBtn {
+            padding: 15px 50px;
+            font-size: 1.5em;
+            background: linear-gradient(to right, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #restartBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        }
+
+        .timer-warning {
+            color: #FF6B6B;
+            font-weight: bold;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>🏊 수영 게임 🏊</h1>
+        <h2 style="color: #FFD700;">물에 빠진 사람 구하기 1:1 대결</h2>
+        
+        <div class="rules">
+            <h2>📋 게임 규칙</h2>
+            <ul>
+                <li>바다에 <strong style="color:#FFD700">7명</strong>의 익수자가 나타납니다</li>
+                <li>각 익수자는 <strong style="color:#FF6B6B">위험도 점수</strong>가 있습니다 (100점~700점)</li>
+                <li><strong style="color:#9B59B6">⚠️ 마이너스 장애물</strong>이 있습니다! (-50점, -100점)</li>
+                <li>위험도가 높은 사람일수록 더 높은 점수를 획득합니다</li>
+                <li><strong style="color:#FFD700">60초 제한시간</strong> 내에 더 많은 점수를 획득한 사람이 승리!</li>
+                <li><strong>동점 시 먼저 그 점수를 달성한 사람이 승리!</strong></li>
+                <li>스프린트를 사용하면 빠르게 이동할 수 있지만 체력이 소모됩니다</li>
+            </ul>
+        </div>
+        
+        <div class="controls-section">
+            <div class="player-controls p1">
+                <h3>👤 플레이어 1 (빨강)</h3>
+                <p>이동: W A S D</p>
+                <p>스프린트: Shift (왼쪽)</p>
+            </div>
+            <div class="player-controls p2">
+                <h3>👤 플레이어 2 (청록)</h3>
+                <p>이동: ↑ ← ↓ →</p>
+                <p>스프린트: Enter (오른쪽)</p>
+            </div>
+        </div>
+        
+        <button id="startBtn">게임 시작</button>
+    </div>
+
+    <div id="gameOverScreen">
+        <h1>🎮 게임 종료 🎮</h1>
+        <div id="resultBox">
+            <div id="winnerText"></div>
+            <div class="result-detail">
+                <div class="result-player p1">
+                    <h3>플레이어 1</h3>
+                    <div class="stats" id="p1Result"></div>
+                    <div class="rescued-list" id="p1Rescued"></div>
+                </div>
+                <div class="result-player p2">
+                    <h3>플레이어 2</h3>
+                    <div class="stats" id="p2Result"></div>
+                    <div class="rescued-list" id="p2Rescued"></div>
+                </div>
+            </div>
+        </div>
+        <button id="restartBtn">다시 시작</button>
+    </div>
+
+    <div id="gameHeader">
+        <h1>🏊 물에 빠진 사람 구하기 🏊</h1>
+    </div>
+
+    <div id="scoreBoard">
+        <div class="player-score player1-score">
+            <span>플레이어 1</span>
+            <span class="rescue-count" id="score1">0</span>
+            <span>점</span>
+        </div>
+        <div class="game-info">
+            <span id="timer">⏱️ 60초</span>
+            <span style="margin-left: 15px;">남은 익수자: <span id="remainingCount">7</span>명</span>
+        </div>
+        <div class="player-score player2-score">
+            <span>플레이어 2</span>
+            <span class="rescue-count" id="score2">0</span>
+            <span>점</span>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas" width="900" height="500" tabindex="0" autofocus></canvas>
+
+    <div id="controls">
+        <div class="control-info">
+            <h3 style="color: #FF6B6B;">👤 플레이어 1</h3>
+            <p>이동: W A S D | 스프린트: Shift</p>
+            <div id="p1KeyDisplay" style="margin-top:5px;font-size:0.9em;color:#FF6B6B;"></div>
+        </div>
+        <div class="control-info">
+            <h3 style="color: #4ECDC4;">👤 플레이어 2</h3>
+            <p>이동: ↑ ← ↓ → | 스프린트: Enter</p>
+            <div id="p2KeyDisplay" style="margin-top:5px;font-size:0.9em;color:#4ECDC4;"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 게임 설정
+        const GAME_TIME = 60; // 초
+        const VICTIMS_COUNT = 7;
+        const OBSTACLES_COUNT = 4;
+        const RESCUE_DISTANCE = 40;
+
+        // 게임 상태
+        let gameRunning = false;
+        let score1 = 0;
+        let score2 = 0;
+        let timeLeft = GAME_TIME;
+        let lastTimeUpdate = 0;
+        let gameStartTime = 0;
+        let animationFrameId = null;
+        let lastFrameTime = 0;
+        let gameLoopStarted = false;
+        let waitingScreenFrameId = null; // 대기 화면용 별도 프레임 ID
+        // 기준 프레임시간 (60fps = 약 16.67ms)
+        const TARGET_FRAME_TIME = 1000 / 60;
+
+        // 점수 달성 시간 추적 (동점 시 사용)
+        let score1Times = []; // 각 점수 달성 시의 시간
+        let score2Times = [];
+
+        // 키 입력 상태
+        const keys = {};
+
+        // 게임 객체들
+        let player1, player2;
+        let victims = [];
+        let obstacles = [];
+        let rescuedVictims = { p1: [], p2: [] };
+        let waterParticles = [];
+        let timeElapsed = 0;
+        let rescueEffect = null;
+
+        // 클래스 정의
+        class Swimmer {
+            constructor(x, y, color, name) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.name = name;
+                this.width = 30;
+                this.height = 30;
+                this.speed = 3;
+                this.sprintSpeed = 5.5;
+                this.stamina = 100;
+                this.maxStamina = 100;
+                this.staminaRegen = 0.8; // 체력 회복 속도 증가
+                this.staminaDrain = 0.9;
+                this.isSprinting = false;
+                this.swimAnimation = 0;
+                this.trail = [];
+                this.rescuedCount = 0;
+                this.totalScore = 0;
+                this.angle = 0; // 이동 방향 각도
+                this.targetAngle = 0;
+            }
+
+            draw() {
+                // 수영 흔적
+                ctx.save();
+                for (let i = 0; i < this.trail.length; i++) {
+                    const t = this.trail[i];
+                    ctx.fillStyle = `rgba(255, 255, 255, ${t.alpha * 0.5})`;
+                    ctx.beginPath();
+                    ctx.ellipse(t.x, t.y, 4, 3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle); // 이동 방향으로 회전
+
+                // 그림자
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                ctx.beginPath();
+                ctx.ellipse(2, 2, 14, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // === 사람 수영 자세 (위에서 본 뷰) ===
+                // 몸통
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 10, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 수영복 디테일
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-6, -5);
+                ctx.lineTo(6, -5);
+                ctx.stroke();
+
+                // 머리 (이동 방향 앞쪽)
+                ctx.fillStyle = '#FFDAB9';
+                ctx.beginPath();
+                ctx.arc(0, -14, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 수영모자
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(0, -16, 8, Math.PI, 0);
+                ctx.fill();
+                
+                // 수영 고글
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.ellipse(-3, -14, 3, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(3, -14, 3, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 고글 반사
+                ctx.fillStyle = '#4FC3F7';
+                ctx.beginPath();
+                ctx.ellipse(-3, -14, 2, 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(3, -14, 2, 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 고글 스트랩
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, -14, 7, -0.3, Math.PI + 0.3);
+                ctx.stroke();
+
+                // 팔 (자유형 수영 - 교차 스트로크)
+                const armPhase = this.swimAnimation * 4;
+                const leftArmSwing = Math.sin(armPhase);
+                const rightArmSwing = Math.sin(armPhase + Math.PI);
+                
+                ctx.strokeStyle = '#FFDAB9';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                
+                // 왼쪽 팔
+                const leftArmExtend = leftArmSwing > 0 ? leftArmSwing * 12 : 0;
+                const leftArmPull = leftArmSwing < 0 ? -leftArmSwing * 8 : 0;
+                ctx.beginPath();
+                ctx.moveTo(-8, -4);
+                ctx.quadraticCurveTo(-14 - leftArmExtend, -8 + leftArmPull, -10 - leftArmExtend, -14 + leftArmPull * 0.5);
+                ctx.stroke();
+                
+                // 오른쪽 팔
+                const rightArmExtend = rightArmSwing > 0 ? rightArmSwing * 12 : 0;
+                const rightArmPull = rightArmSwing < 0 ? -rightArmSwing * 8 : 0;
+                ctx.beginPath();
+                ctx.moveTo(8, -4);
+                ctx.quadraticCurveTo(14 + rightArmExtend, -8 + rightArmPull, 10 + rightArmExtend, -14 + rightArmPull * 0.5);
+                ctx.stroke();
+
+                // 손 (물 잡는 모양)
+                ctx.fillStyle = '#FFDAB9';
+                if (leftArmSwing > 0.3) {
+                    ctx.beginPath();
+                    ctx.arc(-10 - leftArmExtend, -14 + leftArmPull * 0.5, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (rightArmSwing > 0.3) {
+                    ctx.beginPath();
+                    ctx.arc(10 + rightArmExtend, -14 + rightArmPull * 0.5, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 다리 (킥 동작)
+                const legKick = Math.sin(this.swimAnimation * 6) * 6;
+                ctx.strokeStyle = '#FFDAB9';
+                ctx.lineWidth = 3.5;
+                
+                // 왼쪽 다리
+                ctx.beginPath();
+                ctx.moveTo(-4, 10);
+                ctx.lineTo(-5 - legKick * 0.3, 18 + legKick);
+                ctx.stroke();
+                
+                // 오른쪽 다리
+                ctx.beginPath();
+                ctx.moveTo(4, 10);
+                ctx.lineTo(5 + legKick * 0.3, 18 - legKick);
+                ctx.stroke();
+
+                // 발
+                ctx.fillStyle = '#FFDAB9';
+                ctx.beginPath();
+                ctx.ellipse(-5 - legKick * 0.3, 19 + legKick, 2, 3, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(5 + legKick * 0.3, 19 - legKick, 2, 3, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 스프린트 중 물방울 효과
+                if (this.isSprinting && this.stamina > 0) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    for (let i = 0; i < 5; i++) {
+                        const splashX = (Math.random() - 0.5) * 25;
+                        const splashY = 10 + Math.random() * 15;
+                        ctx.beginPath();
+                        ctx.arc(splashX, splashY, 1.5 + Math.random() * 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                // 물결 효과 (몸 주위)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                const waveOffset = Math.sin(this.swimAnimation * 2) * 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 16 + waveOffset, 0.5, Math.PI - 0.5);
+                ctx.stroke();
+
+                ctx.restore();
+
+                // 체력바 (회전하지 않음)
+                const barWidth = 36;
+                const barHeight = 4;
+                const barX = this.x - barWidth / 2;
+                const barY = this.y - 30;
+
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+
+                const staminaPercent = this.stamina / this.maxStamina;
+                const staminaColor = staminaPercent > 0.5 ? '#4CAF50' : staminaPercent > 0.25 ? '#FFC107' : '#F44336';
+                ctx.fillStyle = staminaColor;
+                ctx.fillRect(barX, barY, barWidth * staminaPercent, barHeight);
+                
+                // 포인트 표시
+                if (this.totalScore !== 0) {
+                    ctx.fillStyle = this.totalScore > 0 ? '#FFD700' : '#FF4444';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${this.totalScore}P`, this.x, this.y - 35);
+                }
+                
+                // 플레이어 이름 표시
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 9px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.name === 'Player 1' ? 'P1' : 'P2', this.x, this.y + 30);
+            }
+
+            update(moveX, moveY, sprint) {
+                // 스프린트 활성화 여부 (키가 눌려있고 체력이 남아있을 때)
+                this.isSprinting = sprint && this.stamina > 0;
+                const currentSpeed = this.isSprinting ? this.sprintSpeed : this.speed;
+
+                // 이동 처리
+                if (moveX !== 0 || moveY !== 0) {
+                    const distance = Math.sqrt(moveX * moveX + moveY * moveY);
+                    this.x += (moveX / distance) * currentSpeed;
+                    this.y += (moveY / distance) * currentSpeed;
+                    this.swimAnimation += 0.15;
+
+                    // 이동 방향으로 각도 업데이트
+                    this.targetAngle = Math.atan2(moveY, moveX) + Math.PI / 2;
+                    
+                    // 부드러운 회전
+                    let angleDiff = this.targetAngle - this.angle;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    this.angle += angleDiff * 0.15;
+
+                    this.x = Math.max(this.width, Math.min(canvas.width - this.width, this.x));
+                    this.y = Math.max(this.height, Math.min(canvas.height - this.height, this.y));
+                }
+
+                // 체력(스태미나) 관리 - 이동 여부와 상관없이 항상 실행
+                if (this.isSprinting) {
+                    // 스프린트 중: 체력 감소
+                    this.stamina -= this.staminaDrain;
+                    if (this.stamina < 0) this.stamina = 0;
+                } else {
+                    // 일반 상태: 체력 회복
+                    this.stamina += this.staminaRegen;
+                    if (this.stamina > this.maxStamina) this.stamina = this.maxStamina;
+                }
+
+                // 이동 흔적
+                if (moveX !== 0 || moveY !== 0) {
+                    this.trail.push({ x: this.x, y: this.y + 10, alpha: 0.4 });
+                }
+                for (let i = this.trail.length - 1; i >= 0; i--) {
+                    this.trail[i].alpha -= 0.015;
+                    if (this.trail[i].alpha <= 0) {
+                        this.trail.splice(i, 1);
+                    }
+                }
+            }
+
+            reset(x, y) {
+                this.x = x;
+                this.y = y;
+                this.stamina = this.maxStamina;
+                this.trail = [];
+                this.swimAnimation = 0;
+                this.rescuedCount = 0;
+                this.totalScore = 0;
+                this.angle = 0;
+                this.targetAngle = 0;
+            }
+        }
+
+        class Victim {
+            constructor(id, x, y, dangerLevel) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.dangerLevel = dangerLevel;
+                this.points = dangerLevel * 100;
+                this.rescued = false;
+                this.rescuedBy = null;
+                this.rescueTime = 0;
+                this.helpAnimation = Math.random() * Math.PI * 2;
+                this.alpha = 1;
+            }
+
+            draw() {
+                if (this.rescued) return;
+
+                this.helpAnimation += 0.08;
+                const bob = Math.sin(this.helpAnimation * 2) * 4;
+
+                ctx.save();
+                ctx.translate(this.x, this.y + bob);
+
+                const colors = {
+                    1: { main: '#FFD700', ring: 'rgba(255, 215, 0, 0.5)' },
+                    2: { main: '#FFA500', ring: 'rgba(255, 165, 0, 0.5)' },
+                    3: { main: '#FF8C00', ring: 'rgba(255, 140, 0, 0.5)' },
+                    4: { main: '#FF6347', ring: 'rgba(255, 99, 71, 0.5)' },
+                    5: { main: '#FF4500', ring: 'rgba(255, 69, 0, 0.6)' },
+                    6: { main: '#FF0000', ring: 'rgba(255, 0, 0, 0.6)' },
+                    7: { main: '#DC143C', ring: 'rgba(220, 20, 60, 0.7)' }
+                };
+                const color = colors[this.dangerLevel] || colors[1];
+
+                const ringPulse = Math.sin(this.helpAnimation * 3) * 0.3 + 0.7;
+                for (let i = 0; i < Math.min(this.dangerLevel, 3); i++) {
+                    const ringSize = 35 + i * 10 + Math.sin(this.helpAnimation * 2 + i) * 5;
+                    ctx.strokeStyle = `${color.ring.slice(0, -1)}, ${ringPulse - i * 0.15})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ringSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#FFB347';
+                ctx.beginPath();
+                ctx.ellipse(0, 5, 12, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#FFE4B5';
+                ctx.beginPath();
+                ctx.arc(0, -12, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                const armWave = Math.sin(this.helpAnimation * 4) * 25;
+                ctx.strokeStyle = '#FFE4B5';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(-10, 0);
+                ctx.lineTo(-18, -18 + Math.abs(armWave));
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(18, -22 + Math.abs(armWave));
+                ctx.stroke();
+
+                ctx.fillStyle = color.main;
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${this.points}점`, 0, -38);
+
+                const dangerText = ['', '⚠️', '⚠️⚠️', '⚠️⚠️⚠️', '🆘', '🆘🆘', '🆘🆘🆘', '🆘🆘🆘🆘'];
+                ctx.font = '10px Arial';
+                ctx.fillText(dangerText[this.dangerLevel] || '🆘', 0, 35);
+
+                ctx.restore();
+            }
+
+            update() {
+                if (this.rescued) {
+                    this.alpha -= 0.05;
+                }
+            }
+
+            checkCollision(player) {
+                if (this.rescued) return false;
+                const dx = this.x - player.x;
+                const dy = this.y - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < RESCUE_DISTANCE;
+            }
+        }
+
+        // 장애물 클래스 (마이너스 점수)
+        class Obstacle {
+            constructor(x, y, penalty) {
+                this.x = x;
+                this.y = y;
+                this.penalty = penalty; // -50 또는 -100
+                this.collected = false;
+                this.collectedBy = null;
+                this.animation = Math.random() * Math.PI * 2;
+                this.alpha = 1;
+            }
+
+            draw() {
+                if (this.collected) return;
+
+                this.animation += 0.05;
+                const bob = Math.sin(this.animation * 2) * 3;
+                const rotate = Math.sin(this.animation) * 0.2;
+
+                ctx.save();
+                ctx.translate(this.x, this.y + bob);
+                ctx.rotate(rotate);
+
+                // 위험 영역 표시
+                const pulseSize = 30 + Math.sin(this.animation * 3) * 5;
+                ctx.fillStyle = `rgba(128, 0, 128, ${0.2 + Math.sin(this.animation * 2) * 0.1})`;
+                ctx.beginPath();
+                ctx.arc(0, 0, pulseSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 가시 돌발
+                ctx.fillStyle = '#4B0082';
+                ctx.beginPath();
+                const spikes = 8;
+                for (let i = 0; i < spikes * 2; i++) {
+                    const radius = i % 2 === 0 ? 20 : 12;
+                    const angle = (i / (spikes * 2)) * Math.PI * 2;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+
+                // 해골 아이콘
+                ctx.fillStyle = '#FFF';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('☠️', 0, 0);
+
+                // 점수 표시
+                ctx.fillStyle = '#FF00FF';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(`${this.penalty}점`, 0, -30);
+
+                ctx.restore();
+            }
+
+            update() {
+                if (this.collected) {
+                    this.alpha -= 0.05;
+                }
+            }
+
+            checkCollision(player) {
+                if (this.collected) return false;
+                const dx = this.x - player.x;
+                const dy = this.y - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < 30;
+            }
+        }
+
+        // 물방울 파티클
+        class WaterParticle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 4 + 2;
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.alpha = Math.random() * 0.5 + 0.2;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = `rgba(200, 230, 255, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 공평한 위치 생성 함수
+        function generatePositions(count, margin = 60) {
+            const positions = [];
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // 7개 영역으로 분할
+            const zones = [
+                // 상단
+                { minX: centerX - 200, maxX: centerX - 80, minY: margin, maxY: centerY - 80 },
+                { minX: centerX - 80, maxX: centerX + 80, minY: margin, maxY: centerY - 100 },
+                { minX: centerX + 80, maxX: centerX + 200, minY: margin, maxY: centerY - 80 },
+                // 하단
+                { minX: margin, maxX: centerX - 100, minY: centerY + 50, maxY: canvas.height - margin },
+                { minX: centerX - 100, maxX: centerX + 100, minY: centerY + 80, maxY: canvas.height - margin },
+                { minX: centerX + 100, maxX: canvas.width - margin, minY: centerY + 50, maxY: canvas.height - margin },
+                // 중앙 추가
+                { minX: centerX - 100, maxX: centerX + 100, minY: centerY - 50, maxY: centerY + 50 }
+            ];
+
+            for (let i = 0; i < count; i++) {
+                const zone = zones[i % zones.length];
+                const x = zone.minX + Math.random() * (zone.maxX - zone.minX);
+                const y = zone.minY + Math.random() * (zone.maxY - zone.minY);
+                positions.push({ x, y });
+            }
+
+            return positions;
+        }
+
+        // 초기화
+        function init() {
+            player1 = new Swimmer(120, canvas.height / 2, '#FF6B6B', 'Player 1');
+            player2 = new Swimmer(canvas.width - 120, canvas.height / 2, '#4ECDC4', 'Player 2');
+            
+            for (let i = 0; i < 50; i++) {
+                waterParticles.push(new WaterParticle());
+            }
+        }
+
+        // 라운드 초기화
+        function startRound() {
+            clearAllKeys();
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (waitingScreenFrameId) {
+                cancelAnimationFrame(waitingScreenFrameId);
+                waitingScreenFrameId = null;
+            }
+            
+            // 게임 시작 시 타임스탬프도 초기화
+            lastFrameTime = 0;
+            gameLoopStarted = false;
+            
+            player1.reset(120, canvas.height / 2);
+            player2.reset(canvas.width - 120, canvas.height / 2);
+            
+            // 익수자 생성 (7명)
+            victims = [];
+            const victimPositions = generatePositions(VICTIMS_COUNT);
+            const dangerLevels = [1, 2, 3, 4, 5, 6, 7];
+            // 셔플
+            for (let i = dangerLevels.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [dangerLevels[i], dangerLevels[j]] = [dangerLevels[j], dangerLevels[i]];
+            }
+            victimPositions.forEach((pos, idx) => {
+                victims.push(new Victim(idx, pos.x, pos.y, dangerLevels[idx]));
+            });
+            
+            // 장애물 생성 (4개)
+            obstacles = [];
+            const obstaclePositions = generatePositions(OBSTACLES_COUNT, 80);
+            const penalties = [-50, -50, -100, -100];
+            obstaclePositions.forEach((pos, idx) => {
+                obstacles.push(new Obstacle(pos.x, pos.y, penalties[idx]));
+            });
+            
+            rescuedVictims = { p1: [], p2: [] };
+            score1 = 0;
+            score2 = 0;
+            score1Times = [];
+            score2Times = [];
+            timeLeft = GAME_TIME;
+            gameStartTime = Date.now();
+            lastTimeUpdate = Date.now();
+            lastFrameTime = 0;
+            gameLoopStarted = false;
+            gameRunning = true;
+            rescueEffect = null;
+            
+            document.getElementById('score1').textContent = '0';
+            document.getElementById('score2').textContent = '0';
+            document.getElementById('remainingCount').textContent = VICTIMS_COUNT;
+        }
+
+        // 배경 그리기
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#4FC3F7');
+            gradient.addColorStop(0.5, '#29B6F6');
+            gradient.addColorStop(1, '#0288D1');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            timeElapsed += 0.02;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 10) {
+                    const y = canvas.height * (i + 1) / 6 + Math.sin(x * 0.02 + timeElapsed + i) * 10;
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            for (let i = 0; i < 10; i++) {
+                const x = (i * 100 + timeElapsed * 50) % canvas.width;
+                const y = Math.sin(timeElapsed + i) * 50 + canvas.height / 2;
+                ctx.beginPath();
+                ctx.ellipse(x, y, 30, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 플레이어 시작 위치 표시
+            ctx.fillStyle = 'rgba(255, 107, 107, 0.2)';
+            ctx.beginPath();
+            ctx.arc(120, canvas.height / 2, 40, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(78, 205, 196, 0.2)';
+            ctx.beginPath();
+            ctx.arc(canvas.width - 120, canvas.height / 2, 40, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 중앙선
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // 구조 효과 그리기
+        function drawRescueEffect() {
+            if (!rescueEffect) return;
+            
+            rescueEffect.timer++;
+            const progress = rescueEffect.timer / 30;
+            
+            if (progress >= 1) {
+                rescueEffect = null;
+                return;
+            }
+            
+            ctx.save();
+            ctx.globalAlpha = 1 - progress;
+            ctx.fillStyle = rescueEffect.color;
+            ctx.font = `bold ${20 + progress * 20}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText(rescueEffect.text, rescueEffect.x, rescueEffect.y - progress * 50);
+            ctx.restore();
+        }
+
+        // 키 상태 초기화 함수
+        function clearAllKeys() {
+            for (let key in keys) {
+                keys[key] = false;
+            }
+            document.getElementById('p1KeyDisplay').textContent = '키: 없음';
+            document.getElementById('p2KeyDisplay').textContent = '키: 없음';
+        }
+
+        // 게임 루프
+        function gameLoop(timestamp) {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
+            // deltaTime 계산 (60fps 기준으로 정규화)
+            let deltaTime = 1.0;
+            
+            // 두 번째 프레임부터 deltaTime 계산
+            if (lastFrameTime > 0) {
+                const elapsed = timestamp - lastFrameTime;
+                // deltaTime을 0.5~2.0 범위로 제한 (너무 크거나 작으면 보정)
+                deltaTime = Math.min(Math.max(elapsed / TARGET_FRAME_TIME, 0.5), 2.0);
+            }
+            
+            // 첫 프레임을 기준으로 저장
+            lastFrameTime = timestamp;
+
+            drawBackground();
+            waterParticles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            if (!gameRunning) {
+                animationFrameId = null;
+                return;
+            }
+
+            // 시간 업데이트
+            const now = Date.now();
+            if (now - lastTimeUpdate >= 1000) {
+                timeLeft--;
+                lastTimeUpdate = now;
+                
+                const timerElement = document.getElementById('timer');
+                if (timeLeft <= 10) {
+                    timerElement.innerHTML = `<span class="timer-warning">⏱️ ${timeLeft}초</span>`;
+                } else {
+                    timerElement.textContent = `⏱️ ${timeLeft}초`;
+                }
+                
+                if (timeLeft <= 0) {
+                    endGame();
+                    return;
+                }
+            }
+
+            // 플레이어 1 이동
+            let moveX1 = 0, moveY1 = 0;
+            const p1Up = keys['KeyW'] || keys['w'] || keys['W'];
+            const p1Down = keys['KeyS'] || keys['s'] || keys['S'];
+            const p1Left = keys['KeyA'] || keys['a'] || keys['A'];
+            const p1Right = keys['KeyD'] || keys['d'] || keys['D'];
+            const p1Sprint = keys['ShiftLeft'] || keys['Shift'];
+            if (p1Up) moveY1 -= 1;
+            if (p1Down) moveY1 += 1;
+            if (p1Left) moveX1 -= 1;
+            if (p1Right) moveX1 += 1;
+            player1.update(moveX1, moveY1, p1Sprint, deltaTime);
+
+            // 플레이어 2 이동
+            let moveX2 = 0, moveY2 = 0;
+            const p2Up = keys['ArrowUp'];
+            const p2Down = keys['ArrowDown'];
+            const p2Left = keys['ArrowLeft'];
+            const p2Right = keys['ArrowRight'];
+            const p2Sprint = keys['Enter'] || keys['NumpadEnter'];
+            if (p2Up) moveY2 -= 1;
+            if (p2Down) moveY2 += 1;
+            if (p2Left) moveX2 -= 1;
+            if (p2Right) moveX2 += 1;
+            player2.update(moveX2, moveY2, p2Sprint, deltaTime);
+
+            // 키 상태 표시
+            document.getElementById('p1KeyDisplay').textContent = 
+                `키: ${[p1Up&&'W', p1Down&&'S', p1Left&&'A', p1Right&&'D', p1Sprint&&'Shift'].filter(Boolean).join(' ') || '없음'}`;
+            document.getElementById('p2KeyDisplay').textContent = 
+                `키: ${[p2Up&&'↑', p2Down&&'↓', p2Left&&'←', p2Right&&'→', p2Sprint&&'Enter'].filter(Boolean).join(' ') || '없음'}`;
+
+            // 익수자 충돌 체크
+            let activeVictims = 0;
+            victims.forEach(victim => {
+                if (victim.rescued) {
+                    victim.update();
+                    return;
+                }
+                
+                activeVictims++;
+                
+                // 플레이어 1 체크
+                if (victim.checkCollision(player1)) {
+                    victim.rescued = true;
+                    victim.rescuedBy = 'p1';
+                    victim.rescueTime = GAME_TIME - timeLeft;
+                    player1.rescuedCount++;
+                    player1.totalScore += victim.points;
+                    score1 += victim.points;
+                    score1Times.push({ score: score1, time: GAME_TIME - timeLeft });
+                    document.getElementById('score1').textContent = score1;
+                    rescueEffect = { x: victim.x, y: victim.y, text: `+${victim.points}점!`, color: '#FF6B6B', timer: 0 };
+                    activeVictims--;
+                }
+                // 플레이어 2 체크
+                else if (victim.checkCollision(player2)) {
+                    victim.rescued = true;
+                    victim.rescuedBy = 'p2';
+                    victim.rescueTime = GAME_TIME - timeLeft;
+                    player2.rescuedCount++;
+                    player2.totalScore += victim.points;
+                    score2 += victim.points;
+                    score2Times.push({ score: score2, time: GAME_TIME - timeLeft });
+                    document.getElementById('score2').textContent = score2;
+                    rescueEffect = { x: victim.x, y: victim.y, text: `+${victim.points}점!`, color: '#4ECDC4', timer: 0 };
+                    activeVictims--;
+                }
+            });
+
+            // 장애물 충돌 체크
+            obstacles.forEach(obstacle => {
+                if (obstacle.collected) {
+                    obstacle.update();
+                    return;
+                }
+
+                // 플레이어 1 체크
+                if (obstacle.checkCollision(player1)) {
+                    obstacle.collected = true;
+                    obstacle.collectedBy = 'p1';
+                    player1.totalScore += obstacle.penalty;
+                    score1 += obstacle.penalty;
+                    score1Times.push({ score: score1, time: GAME_TIME - timeLeft });
+                    document.getElementById('score1').textContent = score1;
+                    rescueEffect = { x: obstacle.x, y: obstacle.y, text: `${obstacle.penalty}점!`, color: '#9B59B6', timer: 0 };
+                }
+                // 플레이어 2 체크
+                else if (obstacle.checkCollision(player2)) {
+                    obstacle.collected = true;
+                    obstacle.collectedBy = 'p2';
+                    player2.totalScore += obstacle.penalty;
+                    score2 += obstacle.penalty;
+                    score2Times.push({ score: score2, time: GAME_TIME - timeLeft });
+                    document.getElementById('score2').textContent = score2;
+                    rescueEffect = { x: obstacle.x, y: obstacle.y, text: `${obstacle.penalty}점!`, color: '#9B59B6', timer: 0 };
+                }
+            });
+
+            // 남은 익수자 수 업데이트
+            document.getElementById('remainingCount').textContent = activeVictims;
+
+            // 모든 익수자를 구조했으면 게임 종료
+            if (activeVictims === 0) {
+                endGame();
+                return;
+            }
+
+            // 그리기
+            obstacles.forEach(o => o.draw());
+            victims.forEach(v => v.draw());
+            drawRescueEffect();
+            player1.draw();
+            player2.draw();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // 게임 종료
+        function endGame() {
+            gameRunning = false;
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            clearAllKeys();
+            
+            const gameOverScreen = document.getElementById('gameOverScreen');
+            const winnerText = document.getElementById('winnerText');
+            const p1Result = document.getElementById('p1Result');
+            const p2Result = document.getElementById('p2Result');
+            const p1Rescued = document.getElementById('p1Rescued');
+            const p2Rescued = document.getElementById('p2Rescued');
+
+            const p1Victims = victims.filter(v => v.rescuedBy === 'p1');
+            const p2Victims = victims.filter(v => v.rescuedBy === 'p2');
+            const p1Obstacles = obstacles.filter(o => o.collectedBy === 'p1');
+            const p2Obstacles = obstacles.filter(o => o.collectedBy === 'p2');
+
+            p1Result.innerHTML = `구조: ${p1Victims.length}명 | 점수: ${score1}점`;
+            p2Result.innerHTML = `구조: ${p2Victims.length}명 | 점수: ${score2}점`;
+
+            let p1Detail = p1Victims.map(v => `+${v.points}`).join(', ');
+            if (p1Obstacles.length > 0) {
+                p1Detail += ' | ' + p1Obstacles.map(o => `${o.penalty}`).join(', ');
+            }
+            p1Rescued.textContent = p1Detail || '없음';
+
+            let p2Detail = p2Victims.map(v => `+${v.points}`).join(', ');
+            if (p2Obstacles.length > 0) {
+                p2Detail += ' | ' + p2Obstacles.map(o => `${o.penalty}`).join(', ');
+            }
+            p2Rescued.textContent = p2Detail || '없음';
+
+            // 승자 결정
+            if (score1 > score2) {
+                winnerText.innerHTML = `<span style="color: #FF6B6B">🏆 플레이어 1 (빨강) 승리! 🏆</span>`;
+            } else if (score2 > score1) {
+                winnerText.innerHTML = `<span style="color: #4ECDC4">🏆 플레이어 2 (청록) 승리! 🏆</span>`;
+            } else {
+                // 동점 시 먼저 해당 점수를 달성한 사람 승리
+                // 각 플레이어의 최고 점수 달성 시간 비교
+                const p1MaxScore = Math.max(...score1Times.map(s => s.score), 0);
+                const p2MaxScore = Math.max(...score2Times.map(s => s.score), 0);
+                
+                // 최고 점수가 같은 경우, 먼저 그 점수에 도달한 시간 비교
+                const p1FirstMaxTime = score1Times.find(s => s.score === p1MaxScore)?.time || 999;
+                const p2FirstMaxTime = score2Times.find(s => s.score === p2MaxScore)?.time || 999;
+                
+                if (p1FirstMaxTime < p2FirstMaxTime) {
+                    winnerText.innerHTML = `<span style="color: #FF6B6B">🏆 플레이어 1 (빨강) 승리! (먼저 달성) 🏆</span>`;
+                } else if (p2FirstMaxTime < p1FirstMaxTime) {
+                    winnerText.innerHTML = `<span style="color: #4ECDC4">🏆 플레이어 2 (청록) 승리! (먼저 달성) 🏆</span>`;
+                } else {
+                    // 완전 동점 - 구조한 사람 수 비교
+                    if (p1Victims.length > p2Victims.length) {
+                        winnerText.innerHTML = `<span style="color: #FF6B6B">🏆 플레이어 1 (빨강) 승리! (더 많이 구조) 🏆</span>`;
+                    } else if (p2Victims.length > p1Victims.length) {
+                        winnerText.innerHTML = `<span style="color: #4ECDC4">🏆 플레이어 2 (청록) 승리! (더 많이 구조) 🏆</span>`;
+                    } else {
+                        winnerText.innerHTML = `<span style="color: #FFD700">🤝 무승부! 🤝</span>`;
+                    }
+                }
+            }
+
+            gameOverScreen.classList.add('show');
+        }
+
+        // body에 포커스
+        document.body.tabIndex = 0;
+        document.body.focus();
+
+        // 키 이벤트
+        document.addEventListener('keydown', function(e) {
+            keys[e.key] = true;
+            keys[e.code] = true;
+            
+            if (e.key.startsWith('Arrow') || e.key === ' ') {
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            keys[e.key] = false;
+            keys[e.code] = false;
+        });
+
+        // 게임 시작
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startScreen').style.display = 'none';
+            document.body.focus();
+            clearAllKeys();
+            startRound();
+            gameLoop();
+        });
+
+        // 재시작
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            document.getElementById('gameOverScreen').classList.remove('show');
+            document.body.focus();
+            clearAllKeys();
+            startRound();
+            gameLoop();
+        });
+
+        // 캔버스 클릭 시 포커스
+        document.getElementById('gameCanvas').addEventListener('click', () => {
+            document.getElementById('gameCanvas').focus();
+        });
+
+        // 초기화
+        init();
+        
+        function drawWaitingScreen() {
+            drawBackground();
+            waterParticles.forEach(p => p.draw());
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 28px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('게임 시작 버튼을 누르세요!', canvas.width / 2, canvas.height / 2);
+            
+            waitingScreenFrameId = requestAnimationFrame(drawWaitingScreen);
+        }
+        
+        drawWaitingScreen();
+    </script>
+</body>
+</html>

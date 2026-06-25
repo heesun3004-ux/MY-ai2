@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>물에빠진사람구하기(모바일)</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(135deg, #1a237e, #0288d1, #00bcd4);
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; font-family: -apple-system, Arial, sans-serif;
+            color: white;
+        }
+        .container { text-align: center; padding: 40px; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; }
+        h2 { color: #FFD700; margin-bottom: 30px; }
+        .btn {
+            display: inline-block; padding: 18px 50px; margin: 10px;
+            font-size: 1.3em; border: none; border-radius: 15px;
+            cursor: pointer; font-weight: bold; text-decoration: none;
+            transition: transform 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-multi { background: linear-gradient(135deg, #4ECDC4, #0abde3); color: white; }
+        .info { margin-top: 30px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 15px; max-width: 500px; }
+        .info p { line-height: 1.8; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏊 물에빠진사람구하기(모바일) 🏊</h1>
+        <h2>모바일 멀티플레이어 게임</h2>
+        
+        <a href="/multiplayer.html" class="btn btn-multi">📱 멀티플레이어 (최대 4명)</a>
+        
+        <div class="info">
+            <p>🏠 방을 만들고 QR코드/입장코드로 친구 초대</p>
+            <p>📱 휴대폰으로 QR코드를 스캔하면 게임에 입장!</p>
+            <p>👥 각자 폰으로 게임에 참여하여 대결</p>
+            <p>⚡ 구조자는 최대 4명까지 설정 가능</p>
+        </div>
+    </div>
+</body>
+</html>

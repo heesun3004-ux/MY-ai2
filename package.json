@@ -1,0 +1,28 @@
+{
+  "name": "my-ai2",
+  "version": "1.0.0",
+  "description": "물에빠진사람구하기(모바일) - Mobile Multiplayer Swimming Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heesun3004-ux/MY-ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/heesun3004-ux/MY-ai/issues"
+  },
+  "homepage": "https://github.com/heesun3004-ux/MY-ai#readme",
+  "dependencies": {
+    "express": "^4.22.2",
+    "vercel": "^54.15.1",
+    "ws": "^8.21.0"
+  }
+}

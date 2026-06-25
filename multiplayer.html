@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>물에빠진사람구하기(모바일) - 멀티플레이어</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a237e 0%, #0288d1 50%, #00bcd4 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+            touch-action: none;
+        }
+
+        /* Screen containers */
+        .screen { display: none; min-height: 100vh; padding: 20px; }
+        .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+        /* Main Menu */
+        #menuScreen { justify-content: center; gap: 20px; }
+        #menuScreen h1 { font-size: 2.5em; text-shadow: 3px 3px 6px rgba(0,0,0,0.5); text-align: center; }
+        #menuScreen h2 { color: #FFD700; font-size: 1.2em; text-align: center; }
+        
+        .menu-btn {
+            padding: 18px 40px; font-size: 1.3em; border: none; border-radius: 15px;
+            cursor: pointer; transition: all 0.3s; font-weight: bold; min-width: 250px;
+        }
+        .btn-create { background: linear-gradient(135deg, #FF6B6B, #ee5a24); color: white; }
+        .btn-join { background: linear-gradient(135deg, #4ECDC4, #0abde3); color: white; }
+        .menu-btn:active { transform: scale(0.95); }
+
+        /* Create Room */
+        #createScreen { justify-content: flex-start; padding-top: 40px; gap: 15px; }
+        .form-group { width: 100%; max-width: 400px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 1.1em; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 14px; font-size: 1.1em; border: none; border-radius: 10px;
+            background: rgba(255,255,255,0.15); color: white; backdrop-filter: blur(10px);
+        }
+        .form-group input::placeholder { color: rgba(255,255,255,0.5); }
+        .form-group option { background: #1a237e; color: white; }
+
+        .slider-group { width: 100%; max-width: 400px; }
+        .slider-group label { display: block; margin-bottom: 8px; font-size: 1.1em; }
+        .slider-group input[type="range"] { width: 100%; accent-color: #FFD700; }
+        .slider-value { text-align: center; font-size: 1.5em; color: #FFD700; font-weight: bold; }
+
+        /* Room Screen */
+        #roomScreen { justify-content: flex-start; padding-top: 30px; gap: 15px; }
+        .room-header { text-align: center; }
+        .room-header h2 { font-size: 1.8em; color: #FFD700; }
+        .room-code-display {
+            font-size: 3em; font-weight: bold; letter-spacing: 8px; padding: 15px 30px;
+            background: rgba(0,0,0,0.3); border-radius: 15px; border: 3px solid #FFD700;
+            text-align: center; margin: 10px 0;
+        }
+        .qr-container { background: white; padding: 15px; border-radius: 15px; }
+        .qr-container canvas { display: block; }
+        
+        .players-list { width: 100%; max-width: 500px; }
+        .players-list h3 { margin-bottom: 10px; font-size: 1.2em; }
+        .player-item {
+            display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+            background: rgba(255,255,255,0.1); border-radius: 10px; margin-bottom: 8px;
+        }
+        .player-color { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; }
+        .player-name { flex: 1; font-size: 1.1em; }
+        .player-ready { color: #4CAF50; font-weight: bold; }
+
+        .host-controls { width: 100%; max-width: 500px; }
+        .host-controls h3 { margin-bottom: 10px; }
+        
+        .room-buttons { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+        .room-btn {
+            padding: 14px 30px; font-size: 1.1em; border: none; border-radius: 12px;
+            cursor: pointer; font-weight: bold; transition: all 0.2s;
+        }
+        .room-btn:active { transform: scale(0.95); }
+        .btn-start { background: linear-gradient(135deg, #4CAF50, #2E7D32); color: white; }
+        .btn-ready { background: linear-gradient(135deg, #FF9800, #E65100); color: white; }
+        .btn-leave { background: rgba(255,255,255,0.2); color: white; }
+        .btn-copy { background: linear-gradient(135deg, #9C27B0, #6A1B9A); color: white; }
+
+        /* Game Screen */
+        #gameScreen { padding: 5px; gap: 5px; }
+        .game-scoreboard {
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%;
+        }
+        .score-item {
+            padding: 6px 12px; border-radius: 8px; background: rgba(0,0,0,0.3);
+            display: flex; align-items: center; gap: 8px; font-size: 0.9em;
+        }
+        .score-color { width: 12px; height: 12px; border-radius: 50%; }
+        .score-value { font-weight: bold; font-size: 1.1em; }
+        
+        .game-timer { font-size: 1.3em; padding: 5px 15px; background: rgba(0,0,0,0.3); border-radius: 10px; }
+        .timer-warning { color: #FF5252; animation: blink 0.5s infinite alternate; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.4; } }
+
+        .game-canvas-container { position: relative; width: 100%; max-width: 900px; }
+        #gameCanvas {
+            width: 100%; height: auto; border-radius: 10px;
+            border: 3px solid rgba(255,255,255,0.3);
+        }
+
+        /* Mobile Controls */
+        .mobile-controls {
+            display: none; width: 100%; padding: 10px;
+            justify-content: space-between; align-items: center;
+        }
+        @media (max-width: 768px), (pointer: coarse) {
+            .mobile-controls { display: flex; }
+        }
+        
+        .joystick-area {
+            width: 140px; height: 140px; background: rgba(255,255,255,0.1);
+            border-radius: 50%; border: 3px solid rgba(255,255,255,0.3);
+            position: relative; touch-action: none;
+        }
+        .joystick-knob {
+            width: 50px; height: 50px; background: rgba(255,255,255,0.5);
+            border-radius: 50%; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            transition: none;
+        }
+        
+        .sprint-btn {
+            width: 90px; height: 90px; border-radius: 50%;
+            background: linear-gradient(135deg, #FF5252, #D32F2F);
+            color: white; font-size: 0.9em; font-weight: bold;
+            border: 3px solid rgba(255,255,255,0.3); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            touch-action: none;
+        }
+        .sprint-btn.active { background: linear-gradient(135deg, #FFEB3B, #FF9800); }
+
+        /* Result Screen */
+        #resultScreen { justify-content: center; gap: 20px; }
+        .result-container { text-align: center; max-width: 500px; width: 100%; }
+        .result-container h1 { font-size: 2.5em; margin-bottom: 20px; }
+        .trophy { font-size: 4em; margin: 10px; }
+        .winner-name { font-size: 2em; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        
+        .result-list { width: 100%; margin: 20px 0; }
+        .result-item {
+            display: flex; align-items: center; gap: 12px; padding: 15px;
+            background: rgba(255,255,255,0.1); border-radius: 10px; margin-bottom: 8px;
+        }
+        .result-rank { font-size: 1.5em; font-weight: bold; min-width: 40px; }
+        .result-rank.gold { color: #FFD700; }
+        .result-rank.silver { color: #C0C0C0; }
+        .result-rank.bronze { color: #CD7F32; }
+        .result-info { flex: 1; text-align: left; }
+        .result-name { font-size: 1.2em; font-weight: bold; }
+        .result-stats { font-size: 0.9em; color: rgba(255,255,255,0.7); }
+
+        .error-msg {
+            background: rgba(244,67,54,0.8); padding: 12px 20px; border-radius: 10px;
+            margin: 10px 0; width: 100%; max-width: 400px; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu -->
+    <div id="menuScreen" class="screen active">
+        <h1>🏊 물에빠진사람구하기(모바일) 🏊</h1>
+        <h2>모바일 멀티플레이어 게임</h2>
+        <button class="menu-btn btn-create" onclick="showCreateScreen()">🏠 방 만들기</button>
+        <button class="menu-btn btn-join" onclick="showJoinScreen()">🚪 입장코드로 참여</button>
+    </div>
+
+    <!-- Create Room -->
+    <div id="createScreen" class="screen">
+        <h2 style="color: #FFD700; font-size: 1.8em;">🏠 방 만들기</h2>
+        
+        <div class="form-group">
+            <label>👤 내 이름</label>
+            <input type="text" id="hostNameInput" placeholder="이름 입력" maxlength="10" value="Host">
+        </div>
+        
+        <div class="slider-group">
+            <label>👥 최대 구조자 수</label>
+            <input type="range" id="maxRescuersSlider" min="1" max="4" value="4" oninput="updateMaxRescuers()">
+            <div class="slider-value" id="maxRescuersValue">4명</div>
+        </div>
+
+        <div class="slider-group">
+            <label>⏱️ 게임 시간 (초)</label>
+            <input type="range" id="gameTimeSlider" min="30" max="180" value="60" step="10" oninput="updateGameTime()">
+            <div class="slider-value" id="gameTimeValue">60초</div>
+        </div>
+
+        <div class="slider-group">
+            <label>🆘 익수자 수</label>
+            <input type="range" id="victimsSlider" min="3" max="15" value="7" oninput="updateVictims()">
+            <div class="slider-value" id="victimsValue">7명</div>
+        </div>
+        
+        <div class="room-buttons" style="margin-top: 20px;">
+            <button class="room-btn btn-start" onclick="createRoom()">✅ 방 생성</button>
+            <button class="room-btn btn-leave" onclick="showScreen('menuScreen')">← 뒤로</button>
+        </div>
+    </div>
+
+    <!-- Join Room -->
+    <div id="joinScreen" class="screen">
+        <h2 style="color: #FFD700; font-size: 1.8em;">🚪 방 참여</h2>
+        <div class="form-group">
+            <label>👤 내 이름</label>
+            <input type="text" id="joinNameInput" placeholder="이름 입력" maxlength="10">
+        </div>
+        <div class="form-group">
+            <label>🔑 입장코드</label>
+            <input type="text" id="roomCodeInput" placeholder="입장코드 6자리" maxlength="6" 
+                   style="text-transform: uppercase; font-size: 1.5em; letter-spacing: 5px; text-align: center;">
+        </div>
+        <div id="joinError" class="error-msg" style="display: none;"></div>
+        <div class="room-buttons">
+            <button class="room-btn btn-start" onclick="joinRoom()">✅ 참여</button>
+            <button class="room-btn btn-leave" onclick="showScreen('menuScreen')">← 뒤로</button>
+        </div>
+    </div>
+
+    <!-- Room Waiting -->
+    <div id="roomScreen" class="screen">
+        <div class="room-header">
+            <h2>🏠 게임 대기실</h2>
+            <p id="isHostLabel" style="color: #4CAF50; display: none;">👑 방장</p>
+        </div>
+        
+        <div class="room-code-display" id="roomCodeDisplay">------</div>
+        
+        <div class="qr-container" id="qrContainer">
+            <canvas id="qrCanvas"></canvas>
+        </div>
+        
+        <button class="room-btn btn-copy" onclick="copyRoomCode()">📋 입장코드 복사</button>
+        
+        <div class="players-list">
+            <h3>👥 참가자 (<span id="playerCount">0</span>/<span id="maxPlayerCount">4</span>)</h3>
+            <div id="playersListContainer"></div>
+        </div>
+        
+        <div class="host-controls" id="hostControls" style="display: none;">
+            <h3>⚙️ 방 설정</h3>
+            <div class="slider-group">
+                <label>최대 구조자 수: <span id="roomMaxRescuersVal">4</span>명</label>
+                <input type="range" id="roomMaxRescuersSlider" min="1" max="4" value="4" oninput="updateRoomMaxRescuers()">
+            </div>
+        </div>
+        
+        <div class="room-buttons">
+            <button class="room-btn btn-ready" id="readyBtn" onclick="toggleReady()">⭕ 준비</button>
+            <button class="room-btn btn-start" id="startGameBtn" onclick="startGame()" style="display: none;">🎮 게임 시작</button>
+            <button class="room-btn btn-leave" onclick="leaveRoom()">🚪 나가기</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="screen">
+        <div class="game-scoreboard" id="gameScoreboard"></div>
+        <div class="game-timer" id="gameTimer">⏱️ 60초</div>
+        <div class="game-canvas-container">
+            <canvas id="gameCanvas" width="900" height="500"></canvas>
+        </div>
+        <div class="mobile-controls">
+            <div class="joystick-area" id="joystickArea">
+                <div class="joystick-knob" id="joystickKnob"></div>
+            </div>
+            <div class="sprint-btn" id="sprintBtn">SPRINT</div>
+        </div>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="resultScreen" class="screen">
+        <div class="result-container">
+            <div class="trophy" id="trophyIcon">🏆</div>
+            <h1 id="resultTitle">게임 종료!</h1>
+            <div class="winner-name" id="winnerName"></div>
+            <div class="result-list" id="resultList"></div>
+            <div class="room-buttons">
+                <button class="room-btn btn-start" onclick="restartRoom()">🔄 다시 하기</button>
+                <button class="room-btn btn-leave" onclick="leaveRoom()">🚪 나가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== GLOBALS ==========
+        let ws = null;
+        let myPlayerId = null;
+        let myPlayerIndex = 0;
+        let myColor = '#FF6B6B';
+        let myName = '';
+        let isHost = false;
+        let currentRoomId = null;
+        let isReady = false;
+        let roomState = null;
+
+        // Game state
+        let gameRunning = false;
+        let gameTime = 60;
+        let timeLeft = 60;
+        let lastTimeUpdate = 0;
+        let localPlayers = [];
+        let victims = [];
+        let obstacles = [];
+        let canvasWidth = 900;
+        let canvasHeight = 500;
+        let animationFrameId = null;
+        let lastFrameTime = 0;
+        const rescuedVictimIds = new Set();
+        const hitObstacleIds = new Set();
+
+        // Movement
+        let moveDir = { x: 0, y: 0 };
+        let isSprinting = false;
+        let myX = 0, myY = 0, myAngle = 0, myStamina = 100, mySwimAnim = 0;
+
+        // Joystick
+        let joystickActive = false;
+        let joystickCenter = { x: 70, y: 70 };
+        const JOYSTICK_RADIUS = 55;
+        const JOYSTICK_DEADZONE = 10;
+
+        // ========== SCREEN MANAGEMENT ==========
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showCreateScreen() { showScreen('createScreen'); }
+
+        function showJoinScreen() { showScreen('joinScreen'); }
+
+        function updateMaxRescuers() {
+            document.getElementById('maxRescuersValue').textContent = document.getElementById('maxRescuersSlider').value + '명';
+        }
+        function updateGameTime() {
+            document.getElementById('gameTimeValue').textContent = document.getElementById('gameTimeSlider').value + '초';
+        }
+        function updateVictims() {
+            document.getElementById('victimsValue').textContent = document.getElementById('victimsSlider').value + '명';
+        }
+
+        // ========== ROOM FUNCTIONS ==========
+        function copyRoomCode() {
+            if (currentRoomId) {
+                navigator.clipboard.writeText(currentRoomId).then(() => {
+                    const btn = document.querySelector('.btn-copy');
+                    btn.textContent = '✅ 복사됨!';
+                    setTimeout(() => btn.textContent = '📋 입장코드 복사', 2000);
+                }).catch(() => {
+                    // Fallback
+                    const ta = document.createElement('textarea');
+                    ta.value = currentRoomId;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                });
+            }
+        }
+
+        // ========== WEBSOCKET ==========
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${protocol}//${location.host}`);
+                
+                ws.onopen = () => resolve();
+                ws.onerror = (e) => reject(e);
+                ws.onclose = () => {
+                    if (gameRunning) {
+                        gameRunning = false;
+                        alert('서버와의 연결이 끊어졌습니다.');
+                        showScreen('menuScreen');
+                    }
+                };
+                
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    handleMessage(msg);
+                };
+            });
+        }
+
+        async function sendMsg(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+
+        function handleMessage(msg) {
+            switch (msg.type) {
+                case 'room_created':
+                    myPlayerId = msg.playerId;
+                    isHost = true;
+                    currentRoomId = msg.roomId;
+                    showRoomScreen();
+                    generateQRCode();
+                    break;
+                    
+                case 'joined':
+                    myPlayerId = msg.playerId;
+                    myPlayerIndex = msg.playerIndex;
+                    myColor = msg.color;
+                    myName = msg.name;
+                    currentRoomId = msg.roomId;
+                    showRoomScreen();
+                    break;
+                    
+                case 'room_state':
+                    roomState = msg;
+                    updateRoomUI(msg);
+                    break;
+                    
+                case 'error':
+                    if (document.getElementById('joinScreen').classList.contains('active')) {
+                        const errEl = document.getElementById('joinError');
+                        errEl.textContent = msg.message;
+                        errEl.style.display = 'block';
+                    } else {
+                        alert(msg.message);
+                    }
+                    break;
+                    
+                case 'game_start':
+                    startGameWith(msg.gameData);
+                    break;
+                    
+                case 'player_update':
+                    updateRemotePlayer(msg);
+                    break;
+                    
+                case 'victim_rescued_event':
+                    handleVictimRescued(msg);
+                    break;
+                    
+                case 'obstacle_hit_event':
+                    handleObstacleHit(msg);
+                    break;
+                    
+                case 'game_end':
+                    endGame(msg.results);
+                    break;
+            }
+        }
+
+        // ========== ROOM UI ==========
+        function showRoomScreen() {
+            showScreen('roomScreen');
+            document.getElementById('roomCodeDisplay').textContent = currentRoomId;
+        }
+
+        async function generateQRCode() {
+            const joinUrl = `${location.origin}/multiplayer.html?room=${currentRoomId}`;
+            const canvas = document.getElementById('qrCanvas');
+            try {
+                await QRCode.toCanvas(canvas, joinUrl, { width: 180, margin: 1 });
+            } catch (e) {
+                console.error('QR generation error:', e);
+            }
+        }
+
+        function updateRoomUI(state) {
+            document.getElementById('playerCount').textContent = state.players.length;
+            document.getElementById('maxPlayerCount').textContent = state.maxRescuers;
+            
+            if (state.settings) {
+                document.getElementById('roomMaxRescuersSlider').value = state.maxRescuers;
+                document.getElementById('roomMaxRescuersVal').textContent = state.maxRescuers;
+            }
+            
+            const list = document.getElementById('playersListContainer');
+            list.innerHTML = '';
+            state.players.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'player-item';
+                item.innerHTML = `
+                    <div class="player-color" style="background: ${p.color}"></div>
+                    <span class="player-name">${p.name}${p.id === state.players[0]?.id ? ' 👑' : ''}</span>
+                    <span class="player-ready">${p.ready ? '✅ 준비' : '⏳ 대기'}</span>
+                `;
+                list.appendChild(item);
+            });
+            
+            // Host controls
+            const isMeHost = state.players[0]?.id === myPlayerId;
+            document.getElementById('hostControls').style.display = isMeHost ? 'block' : 'none';
+            document.getElementById('isHostLabel').style.display = isMeHost ? 'block' : 'none';
+            document.getElementById('startGameBtn').style.display = isMeHost ? 'block' : 'none';
+            
+            // Update my index
+            const me = state.players.find(p => p.id === myPlayerId);
+            if (me) {
+                myPlayerIndex = me.index || state.players.indexOf(me);
+                myColor = me.color || myColor;
+            }
+        }
+
+        async function createRoom() {
+            try {
+                await connectWebSocket();
+                myName = document.getElementById('hostNameInput').value.trim() || 'Host';
+                await sendMsg({
+                    type: 'create_room',
+                    hostName: myName,
+                    playerName: myName,
+                    maxRescuers: parseInt(document.getElementById('maxRescuersSlider').value),
+                    gameTime: parseInt(document.getElementById('gameTimeSlider').value),
+                    victimsCount: parseInt(document.getElementById('victimsSlider').value)
+                });
+            } catch (e) {
+                alert('서버 연결 실패. 서버가 실행 중인지 확인하세요.');
+            }
+        }
+
+        async function joinRoom() {
+            const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+            if (!code) {
+                document.getElementById('joinError').textContent = '입장코드를 입력해주세요.';
+                document.getElementById('joinError').style.display = 'block';
+                return;
+            }
+            
+            try {
+                await connectWebSocket();
+                myName = document.getElementById('joinNameInput').value.trim() || ('Player ' + (Math.floor(Math.random() * 99) + 1));
+                await sendMsg({
+                    type: 'join_room',
+                    roomId: code,
+                    playerName: myName
+                });
+            } catch (e) {
+                alert('서버 연결 실패. 서버가 실행 중인지 확인하세요.');
+            }
+        }
+
+        function toggleReady() {
+            isReady = !isReady;
+            const btn = document.getElementById('readyBtn');
+            btn.textContent = isReady ? '❌ 준비 취소' : '⭕ 준비';
+            btn.style.background = isReady ? 'linear-gradient(135deg, #f44336, #c62828)' : 'linear-gradient(135deg, #FF9800, #E65100)';
+            sendMsg({ type: 'player_ready', ready: isReady });
+        }
+
+        async function startGame() {
+            if (!isHost) return;
+            await sendMsg({ type: 'start_game' });
+        }
+
+        async function updateRoomMaxRescuers() {
+            const val = parseInt(document.getElementById('roomMaxRescuersSlider').value);
+            document.getElementById('roomMaxRescuersVal').textContent = val;
+            if (isHost) {
+                await sendMsg({ type: 'update_settings', maxRescuers: val });
+            }
+        }
+
+        async function leaveRoom() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            resetGameState();
+            isReady = false;
+            currentRoomId = null;
+            isHost = false;
+            showScreen('menuScreen');
+        }
+
+        // ========== GAME ==========
+        function resetGameState() {
+            gameRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            victims = [];
+            obstacles = [];
+            localPlayers = [];
+            rescuedVictimIds.clear();
+            hitObstacleIds.clear();
+            timeLeft = 60;
+            moveDir = { x: 0, y: 0 };
+            isSprinting = false;
+        }
+
+        function startGameWith(gameData) {
+            resetGameState();
+            showScreen('gameScreen');
+            
+            canvasWidth = gameData.canvasWidth || 900;
+            canvasHeight = gameData.canvasHeight || 500;
+            gameTime = gameData.settings?.gameTime || 60;
+            timeLeft = gameTime;
+            
+            const canvas = document.getElementById('gameCanvas');
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
+            victims = gameData.victims.map(v => ({ ...v }));
+            obstacles = gameData.obstacles.map(o => ({ ...o }));
+            
+            // Setup local player
+            const myData = gameData.players.find(p => p.id === myPlayerId);
+            if (myData) {
+                myX = myData.x;
+                myY = myData.y;
+                myAngle = 0;
+                myStamina = 100;
+                mySwimAnim = 0;
+            }
+            
+            localPlayers = gameData.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                color: p.color,
+                x: p.x,
+                y: p.y,
+                angle: p.index === (myPlayerIndex || 0) ? 0 : Math.PI,
+                stamina: 100,
+                isSprinting: false,
+                swimAnimation: 0,
+                score: 0,
+                rescuedCount: 0,
+                trail: []
+            }));
+            
+            // Build scoreboard
+            buildScoreboard();
+            
+            gameRunning = true;
+            lastTimeUpdate = Date.now();
+            lastFrameTime = 0;
+            gameLoop(0);
+        }
+
+        function buildScoreboard() {
+            const sb = document.getElementById('gameScoreboard');
+            sb.innerHTML = '';
+            localPlayers.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'score-item';
+                item.id = 'score_' + p.id;
+                item.innerHTML = `
+                    <div class="score-color" style="background: ${p.color}"></div>
+                    <span>${p.name}</span>
+                    <span class="score-value" id="scoreVal_${p.id}">0</span>
+                    <span>점</span>
+                `;
+                sb.appendChild(item);
+            });
+        }
+
+        function updateRemotePlayer(msg) {
+            const p = localPlayers.find(pl => pl.id === msg.playerId);
+            if (p) {
+                p.x = msg.x;
+                p.y = msg.y;
+                p.angle = msg.angle;
+                p.isSprinting = msg.isSprinting;
+                p.stamina = msg.stamina;
+                p.swimAnimation = msg.swimAnimation;
+            }
+        }
+
+        function handleVictimRescued(msg) {
+            if (!rescuedVictimIds.has(msg.victimId)) {
+                rescuedVictimIds.add(msg.victimId);
+                const victim = victims.find(v => v.id === msg.victimId);
+                if (victim) {
+                    victim.rescued = true;
+                    victim.rescuedBy = msg.playerId;
+                }
+                const p = localPlayers.find(pl => pl.id === msg.playerId);
+                if (p) {
+                    p.score += msg.points;
+                    p.rescuedCount++;
+                    const scoreEl = document.getElementById('scoreVal_' + msg.playerId);
+                    if (scoreEl) scoreEl.textContent = p.score;
+                }
+            }
+        }
+
+        function handleObstacleHit(msg) {
+            if (!hitObstacleIds.has(msg.obstacleId)) {
+                hitObstacleIds.add(msg.obstacleId);
+                const obs = obstacles.find(o => o.id === msg.obstacleId);
+                if (obs) {
+                    obs.collected = true;
+                    obs.collectedBy = msg.playerId;
+                }
+                const p = localPlayers.find(pl => pl.id === msg.playerId);
+                if (p) {
+                    p.score += msg.penalty;
+                    const scoreEl = document.getElementById('scoreVal_' + msg.playerId);
+                    if (scoreEl) scoreEl.textContent = p.score;
+                }
+            }
+        }
+
+        function endGame(results) {
+            gameRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            showScreen('resultScreen');
+            
+            results.sort((a, b) => b.score - a.score);
+            
+            const winner = results[0];
+            document.getElementById('winnerName').textContent = `🏆 ${winner.name} 승리! 🏆`;
+            document.getElementById('winnerName').style.color = winner.color;
+            document.getElementById('trophyIcon').textContent = '🏆';
+            document.getElementById('resultTitle').textContent = '게임 종료!';
+            
+            const list = document.getElementById('resultList');
+            list.innerHTML = '';
+            const rankClasses = ['gold', 'silver', 'bronze', ''];
+            const rankEmojis = ['🥇', '🥈', '🥉', ''];
+            
+            results.forEach((r, idx) => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `
+                    <div class="result-rank ${rankClasses[idx] || ''}">${rankEmojis[idx] || (idx + 1)}</div>
+                    <div class="player-color" style="background: ${r.color}"></div>
+                    <div class="result-info">
+                        <div class="result-name">${r.name}</div>
+                        <div class="result-stats">구조: ${r.rescuedCount}명 | 점수: ${r.score}점</div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function restartRoom() {
+            if (isHost) {
+                await sendMsg({ type: 'restart_room' });
+            }
+            resetGameState();
+            isReady = false;
+            showScreen('roomScreen');
+        }
+
+        // ========== GAME LOOP ==========
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+            
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Delta time
+            let deltaTime = 1.0;
+            if (lastFrameTime > 0) {
+                const elapsed = timestamp - lastFrameTime;
+                deltaTime = Math.min(Math.max(elapsed / (1000 / 60), 0.5), 2.0);
+            }
+            lastFrameTime = timestamp;
+            
+            // Timer
+            const now = Date.now();
+            if (now - lastTimeUpdate >= 1000) {
+                timeLeft--;
+                lastTimeUpdate = now;
+                const timerEl = document.getElementById('gameTimer');
+                if (timeLeft <= 10) {
+                    timerEl.innerHTML = `<span class="timer-warning">⏱️ ${timeLeft}초</span>`;
+                } else {
+                    timerEl.textContent = `⏱️ ${timeLeft}초`;
+                }
+                if (timeLeft <= 0) {
+                    sendMsg({ type: 'end_game' });
+                    return;
+                }
+            }
+            
+            // Update local player
+            updateMyPlayer(deltaTime);
+            
+            // Send position
+            sendMsg({
+                type: 'player_move',
+                x: myX, y: myY, angle: myAngle,
+                isSprinting: isSprinting, stamina: myStamina,
+                swimAnimation: mySwimAnim
+            });
+            
+            // Collision detection (host handles authoritative state, but each client does optimistic)
+            checkCollisions();
+            
+            // Draw
+            drawBackground(ctx, canvas);
+            drawParticles(ctx, canvas);
+            
+            // Draw obstacles
+            obstacles.forEach(o => { if (!o.collected) drawObstacle(ctx, o); });
+            
+            // Draw victims
+            victims.forEach(v => { if (!v.rescued) drawVictim(ctx, v); });
+            
+            // Draw players
+            const timeElapsed = Date.now() * 0.002;
+            localPlayers.forEach(p => drawPlayer(ctx, p, timeElapsed));
+            
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateMyPlayer(dt) {
+            // 기본속도 2.0, 스프린트 속도 7.0으로 차별화
+            const speed = isSprinting && myStamina > 0 ? 7.0 : 2.0;
+            
+            if (moveDir.x !== 0 || moveDir.y !== 0) {
+                const dist = Math.sqrt(moveDir.x * moveDir.x + moveDir.y * moveDir.y);
+                myX += (moveDir.x / dist) * speed * dt;
+                myY += (moveDir.y / dist) * speed * dt;
+                mySwimAnim += 0.15 * dt;
+                myAngle = Math.atan2(moveDir.y, moveDir.x) + Math.PI / 2;
+            }
+            
+            myX = Math.max(20, Math.min(canvasWidth - 20, myX));
+            myY = Math.max(20, Math.min(canvasHeight - 20, myY));
+            
+            // 체력(스태미나) 관리 - 이동 여부와 무관하게 항상 변화
+            if (isSprinting && myStamina > 0) {
+                myStamina -= 1.2 * dt;
+                if (myStamina < 0) myStamina = 0;
+            } else {
+                myStamina += 1.0 * dt;
+                if (myStamina > 100) myStamina = 100;
+            }
+            
+            // Update local player entry
+            const me = localPlayers.find(p => p.id === myPlayerId);
+            if (me) {
+                me.x = myX;
+                me.y = myY;
+                me.angle = myAngle;
+                me.isSprinting = isSprinting;
+                me.stamina = myStamina;
+                me.swimAnimation = mySwimAnim;
+            }
+        }
+
+        function checkCollisions() {
+            const RESCUE_DIST = 40;
+            
+            victims.forEach(v => {
+                if (v.rescued || rescuedVictimIds.has(v.id)) return;
+                const dx = v.x - myX;
+                const dy = v.y - myY;
+                if (Math.sqrt(dx * dx + dy * dy) < RESCUE_DIST) {
+                    rescuedVictimIds.add(v.id);
+                    v.rescued = true;
+                    v.rescuedBy = myPlayerId;
+                    const me = localPlayers.find(p => p.id === myPlayerId);
+                    if (me) {
+                        me.score += v.points;
+                        me.rescuedCount++;
+                        const scoreEl = document.getElementById('scoreVal_' + myPlayerId);
+                        if (scoreEl) scoreEl.textContent = me.score;
+                    }
+                    sendMsg({ type: 'victim_rescued', victimId: v.id, points: v.points });
+                }
+            });
+            
+            obstacles.forEach(o => {
+                if (o.collected || hitObstacleIds.has(o.id)) return;
+                const dx = o.x - myX;
+                const dy = o.y - myY;
+                if (Math.sqrt(dx * dx + dy * dy) < 30) {
+                    hitObstacleIds.add(o.id);
+                    o.collected = true;
+                    o.collectedBy = myPlayerId;
+                    const me = localPlayers.find(p => p.id === myPlayerId);
+                    if (me) {
+                        me.score += o.penalty;
+                        const scoreEl = document.getElementById('scoreVal_' + myPlayerId);
+                        if (scoreEl) scoreEl.textContent = me.score;
+                    }
+                    sendMsg({ type: 'obstacle_hit', obstacleId: o.id, penalty: o.penalty });
+                }
+            });
+        }
+
+        // ========== DRAWING ==========
+        function drawBackground(ctx, canvas) {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#4FC3F7');
+            gradient.addColorStop(0.5, '#29B6F6');
+            gradient.addColorStop(1, '#0288D1');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const t = Date.now() * 0.002;
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 10) {
+                    const y = canvas.height * (i + 1) / 6 + Math.sin(x * 0.02 + t + i) * 10;
+                    x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+
+        let bgParticles = [];
+        function drawParticles(ctx, canvas) {
+            if (bgParticles.length === 0) {
+                for (let i = 0; i < 30; i++) {
+                    bgParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 3 + 1,
+                        sx: (Math.random() - 0.5) * 0.5,
+                        sy: (Math.random() - 0.5) * 0.5,
+                        alpha: Math.random() * 0.4 + 0.1
+                    });
+                }
+            }
+            bgParticles.forEach(p => {
+                p.x += p.sx; p.y += p.sy;
+                if (p.x < 0 || p.x > canvas.width) p.sx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.sy *= -1;
+                ctx.fillStyle = `rgba(200,230,255,${p.alpha})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawPlayer(ctx, player, time) {
+            const p = player;
+            const prevAnim = p.swimAnimation || 0;
+            
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(2, 2, 14, 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Body
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 10, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Head
+            ctx.fillStyle = '#FFDAB9';
+            ctx.beginPath();
+            ctx.arc(0, -14, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Swim cap
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(0, -16, 8, Math.PI, 0);
+            ctx.fill();
+            
+            // Goggles
+            ctx.fillStyle = '#222';
+            ctx.beginPath();
+            ctx.ellipse(-3, -14, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(3, -14, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Arms
+            const armPhase = prevAnim * 4;
+            const lSwing = Math.sin(armPhase);
+            const rSwing = Math.sin(armPhase + Math.PI);
+            ctx.strokeStyle = '#FFDAB9';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(-8, -4);
+            ctx.quadraticCurveTo(-14 - lSwing * 12, -8 - lSwing * 8, -10 - lSwing * 12, -14);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(8, -4);
+            ctx.quadraticCurveTo(14 + rSwing * 12, -8 - rSwing * 8, 10 + rSwing * 12, -14);
+            ctx.stroke();
+            
+            // Legs
+            const legKick = Math.sin(prevAnim * 6) * 6;
+            ctx.beginPath();
+            ctx.moveTo(-4, 10);
+            ctx.lineTo(-5 - legKick * 0.3, 18 + legKick);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(4, 10);
+            ctx.lineTo(5 + legKick * 0.3, 18 - legKick);
+            ctx.stroke();
+            
+            ctx.restore();
+            
+            // Stamina bar
+            const barW = 36, barH = 4;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(p.x - barW/2, p.y - 30, barW, barH);
+            const stPct = p.stamina / 100;
+            ctx.fillStyle = stPct > 0.5 ? '#4CAF50' : stPct > 0.25 ? '#FFC107' : '#F44336';
+            ctx.fillRect(p.x - barW/2, p.y - 30, barW * stPct, barH);
+            
+            // Name + Score
+            ctx.fillStyle = p.color;
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.name, p.x, p.y + 28);
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText(`${p.score}P`, p.x, p.y - 35);
+        }
+
+        function drawVictim(ctx, v) {
+            const anim = Date.now() * 0.003;
+            const bob = Math.sin(anim + v.x) * 4;
+            
+            ctx.save();
+            ctx.translate(v.x, v.y + bob);
+            
+            const colors = {
+                1: '#FFD700', 2: '#FFA500', 3: '#FF8C00', 4: '#FF6347',
+                5: '#FF4500', 6: '#FF0000', 7: '#DC143C'
+            };
+            const color = colors[v.dangerLevel] || '#FFD700';
+            
+            // Ring
+            const pulse = Math.sin(anim * 2) * 0.3 + 0.7;
+            for (let i = 0; i < Math.min(v.dangerLevel, 3); i++) {
+                const rSize = 35 + i * 10 + Math.sin(anim * 2 + i) * 5;
+                ctx.strokeStyle = `rgba(255,200,0,${pulse - i * 0.15})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, rSize, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Body
+            ctx.fillStyle = '#FFB347';
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 12, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Head
+            ctx.fillStyle = '#FFE4B5';
+            ctx.beginPath();
+            ctx.arc(0, -12, 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Arms waving
+            const armW = Math.sin(anim * 3) * 25;
+            ctx.strokeStyle = '#FFE4B5';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-10, 0);
+            ctx.lineTo(-18, -18 + Math.abs(armW));
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(10, 0);
+            ctx.lineTo(18, -22 + Math.abs(armW));
+            ctx.stroke();
+            
+            // Points
+            ctx.fillStyle = color;
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${v.points}점`, 0, -38);
+            
+            ctx.restore();
+        }
+
+        function drawObstacle(ctx, o) {
+            const anim = Date.now() * 0.002;
+            const bob = Math.sin(anim + o.x) * 3;
+            const rot = Math.sin(anim) * 0.2;
+            
+            ctx.save();
+            ctx.translate(o.x, o.y + bob);
+            ctx.rotate(rot);
+            
+            // Danger zone
+            const pulse = 30 + Math.sin(anim * 3) * 5;
+            ctx.fillStyle = `rgba(128,0,128,${0.2 + Math.sin(anim * 2) * 0.1})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, pulse, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Spikes
+            ctx.fillStyle = '#4B0082';
+            ctx.beginPath();
+            for (let i = 0; i < 16; i++) {
+                const r = i % 2 === 0 ? 20 : 12;
+                const a = (i / 16) * Math.PI * 2;
+                const x = Math.cos(a) * r;
+                const y = Math.sin(a) * r;
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.fillStyle = '#FFF';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('☠️', 0, 0);
+            
+            ctx.fillStyle = '#FF00FF';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(`${o.penalty}점`, 0, -30);
+            
+            ctx.restore();
+        }
+
+        // ========== MOBILE JOYSTICK ==========
+        const joystickArea = document.getElementById('joystickArea');
+        const joystickKnob = document.getElementById('joystickKnob');
+        const sprintBtn = document.getElementById('sprintBtn');
+
+        function setupJoystick() {
+            const area = document.getElementById('joystickArea');
+            
+            area.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                joystickActive = true;
+                const rect = area.getBoundingClientRect();
+                joystickCenter = { x: rect.width / 2, y: rect.height / 2 };
+                handleJoystickMove(e.touches[0], rect);
+            }, { passive: false });
+            
+            area.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (joystickActive) {
+                    const rect = area.getBoundingClientRect();
+                    handleJoystickMove(e.touches[0], rect);
+                }
+            }, { passive: false });
+            
+            area.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                joystickActive = false;
+                joystickKnob.style.transform = 'translate(-50%, -50%)';
+                moveDir = { x: 0, y: 0 };
+            }, { passive: false });
+        }
+
+        function handleJoystickMove(touch, rect) {
+            let dx = touch.clientX - rect.left - joystickCenter.x;
+            let dy = touch.clientY - rect.top - joystickCenter.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > JOYSTICK_RADIUS) {
+                dx = (dx / dist) * JOYSTICK_RADIUS;
+                dy = (dy / dist) * JOYSTICK_RADIUS;
+            }
+            
+            if (dist < JOYSTICK_DEADZONE) {
+                moveDir = { x: 0, y: 0 };
+                joystickKnob.style.transform = 'translate(-50%, -50%)';
+            } else {
+                moveDir = { x: dx / JOYSTICK_RADIUS, y: dy / JOYSTICK_RADIUS };
+                joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            }
+        }
+
+        // Sprint button
+        sprintBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isSprinting = true;
+            sprintBtn.classList.add('active');
+        }, { passive: false });
+
+        sprintBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            isSprinting = false;
+            sprintBtn.classList.remove('active');
+        }, { passive: false });
+
+        // Keyboard fallback (for desktop testing)
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            updateKeyboardMove();
+            if (e.code === 'ShiftLeft' || e.code === 'Shift') isSprinting = true;
+            if (e.key.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+            updateKeyboardMove();
+            if (e.code === 'ShiftLeft' || e.code === 'Shift') isSprinting = false;
+        });
+
+        function updateKeyboardMove() {
+            let mx = 0, my = 0;
+            if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) my += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+            if (mx !== 0 || my !== 0) moveDir = { x: mx, y: my };
+            else if (!joystickActive) moveDir = { x: 0, y: 0 };
+        }
+
+        // Init
+        setupJoystick();
+
+        // Check URL params for room code (QR code join)
+        const urlParams = new URLSearchParams(location.search);
+        const urlRoom = urlParams.get('room');
+        if (urlRoom) {
+            document.getElementById('roomCodeInput').value = urlRoom;
+            showJoinScreen();
+        }
+    </script>
+</body>
+</html>
