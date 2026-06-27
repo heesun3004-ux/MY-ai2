@@ -1,28 +1,24 @@
 {
   "name": "my-ai2",
   "version": "1.0.0",
-  "description": "물에빠진사람구하기(모바일) - Mobile Multiplayer Swimming Game",
-  "main": "server.js",
+  "description": "수영 여행 - 멀티플레이어 수영 게임 & 기록 앱",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node src/server.ts"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/heesun3004-ux/MY-ai.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/heesun3004-ux/MY-ai/issues"
-  },
-  "homepage": "https://github.com/heesun3004-ux/MY-ai#readme",
   "dependencies": {
-    "express": "^4.22.2",
-    "vercel": "^54.15.1",
-    "ws": "^8.21.0"
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "socket.io": "^4.7.0",
+    "socket.io-client": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.9.3"
   }
 }
