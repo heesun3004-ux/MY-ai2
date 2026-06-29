@@ -1,7 +1,7 @@
 {
   "name": "my-ai2",
   "version": "1.0.0",
-  "description": "수영 여행 - 멀티플레이어 수영 게임 & 기록 앱",
+  "description": "수영 기록부터 목표 관리, AI 코칭까지 한곳에서 관리하는 나만의 수영 캘린더",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,8 +12,7 @@
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "socket.io": "^4.7.0",
-    "socket.io-client": "^4.7.0"
+    "socket.io": "^4.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

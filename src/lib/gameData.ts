@@ -48,8 +48,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 11 62 C 24 68, 38 58, 47 50 S 66 34, 87 39"
     ],
     "mapPos": {
-      "x": 161,
-      "y": 124
+      "x": 362,
+      "y": 292
     }
   },
   "제주": {
@@ -90,8 +90,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 10 65 C 26 70, 32 48, 47 51 S 62 68, 86 47"
     ],
     "mapPos": {
-      "x": 194,
-      "y": 534
+      "x": 435,
+      "y": 1249
     }
   },
   "부산": {
@@ -132,8 +132,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 9 61 C 26 66, 41 63, 54 55 S 72 47, 90 51"
     ],
     "mapPos": {
-      "x": 425,
-      "y": 317
+      "x": 865,
+      "y": 936
     }
   },
   "경주": {
@@ -174,8 +174,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 12 61 C 28 66, 39 57, 52 52 S 69 48, 87 55"
     ],
     "mapPos": {
-      "x": 327,
-      "y": 298
+      "x": 955,
+      "y": 743
     }
   },
   "강원": {
@@ -216,8 +216,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 9 67 C 25 63, 37 52, 51 48 S 72 39, 90 34"
     ],
     "mapPos": {
-      "x": 323,
-      "y": 107
+      "x": 725,
+      "y": 252
     }
   },
   "목포": {
@@ -258,8 +258,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 14 64 C 26 49, 42 44, 55 48 S 73 58, 86 42"
     ],
     "mapPos": {
-      "x": 101,
-      "y": 425
+      "x": 225,
+      "y": 996
     }
   },
   "전주": {
@@ -300,8 +300,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 13 62 C 28 48, 43 45, 55 53 S 72 58, 88 40"
     ],
     "mapPos": {
-      "x": 160,
-      "y": 293
+      "x": 359,
+      "y": 687
     }
   },
   "광주": {
@@ -342,8 +342,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 10 60 C 24 49, 39 47, 52 54 S 69 66, 89 51"
     ],
     "mapPos": {
-      "x": 156,
-      "y": 374
+      "x": 350,
+      "y": 875
     }
   },
   "대구": {
@@ -384,8 +384,8 @@ export const REGIONS: Record<string, RegionData> = {
       "M 11 64 C 25 70, 39 62, 52 55 S 70 48, 88 52"
     ],
     "mapPos": {
-      "x": 386,
-      "y": 399
+      "x": 734,
+      "y": 699
     }
   }
 };
@@ -421,6 +421,5 @@ export function getCourseName(region: string, courseIndex: number): string {
 
 // 거리 포맷팅
 export function formatDistanceExact(meters: number): string {
-  if (meters >= 1000) return `${parseFloat((meters / 1000).toFixed(2))}km`;
-  return `${Math.floor(meters)}m`;
+  return `${Math.trunc(meters).toLocaleString('ko-KR')}m`;
 }

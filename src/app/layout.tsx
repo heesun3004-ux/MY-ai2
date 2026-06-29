@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '수영 여행 - 당신의 수영이 지도 위 여행이 된다',
-  description: '수영 기록 앱 & 멀티플레이어 수영 게임',
+  title: 'Swim Log',
+  description: '수영 기록부터 목표 관리, AI 코칭까지 한곳에서 관리하는 나만의 수영 캘린더',
 };
 
 export default function RootLayout({
