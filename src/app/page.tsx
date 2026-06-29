@@ -490,8 +490,21 @@ export default function Home() {
       <div className="app-container">
         {/* 헤더 */}
         <header className="app-header">
-          <h1 className="app-title">Swim Log</h1>
-          <p className="app-subtitle">수영 기록부터 목표 관리, AI 코칭까지 한곳에서 관리하는 나만의 수영 캘린더</p>
+          <div className="app-header-copy">
+            <div className="app-logo-mark" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <h1 className="app-title">
+              Swim Log
+              <span className="app-title-wave" aria-hidden="true" />
+            </h1>
+            <p className="app-subtitle">수영 기록부터 목표 관리, AI 코칭까지 한곳에서 관리하는 나만의 수영 캘린더</p>
+          </div>
+          <div className="app-header-visual" aria-hidden="true">
+            <img src="/images/swim-hero-athlete.png" alt="" />
+          </div>
         </header>
 
         {/* 탭 네비게이션 */}
@@ -647,7 +660,7 @@ function HomeTab({
         />
         <div className="calendar-header">
           <div>
-            <h3 className="section-subtitle">Swim Log</h3>
+            <h3 className="section-subtitle">나만의 수영 캘린더</h3>
             <p className="calendar-month-total">Total : {formatDistanceExact(calendarMonthTotal)}</p>
           </div>
           <div className="calendar-selectors" aria-label="달력 년도와 월 선택">
