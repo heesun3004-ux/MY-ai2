@@ -189,29 +189,33 @@ body::after {
 }
 
 .app-landing-link {
-  position: relative;
-  z-index: 4;
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 6;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  margin-top: 18px;
-  padding: 0 16px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
   border: 1px solid rgba(161, 205, 239, 0.72);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.86);
   color: var(--water-blue-dark);
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 900;
+  line-height: 1;
   text-decoration: none;
   box-shadow: var(--water-shadow-soft);
   backdrop-filter: blur(14px);
-  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .app-landing-link:hover {
   transform: translateY(-1px);
   border-color: var(--water-blue);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 20px rgba(37, 136, 232, 0.18);
 }
 
@@ -2486,10 +2490,11 @@ body::after {
   }
 
   .app-landing-link {
-    min-height: 34px;
-    margin-top: 12px;
-    padding: 0 12px;
-    font-size: 12px;
+    top: 14px;
+    left: 14px;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
   }
 
   .auth-panel {
@@ -2646,32 +2651,32 @@ body::after {
   box-shadow: 0 26px 70px rgba(35, 117, 181, 0.22);
 }
 
-.landing-hero::before,
-.landing-hero::after {
-  content: '';
+.landing-hero-background {
   position: absolute;
-  left: -6%;
-  right: -6%;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
 }
 
-.landing-hero::before {
-  top: 32%;
-  height: 190px;
-  background:
-    repeating-radial-gradient(ellipse at 74% 48%, rgba(255, 255, 255, 0.78) 0 2px, rgba(255, 255, 255, 0) 3px 21px),
-    linear-gradient(172deg, rgba(255, 255, 255, 0) 0 38%, rgba(218, 243, 255, 0.82) 39% 48%, rgba(255, 255, 255, 0) 50%),
-    linear-gradient(174deg, rgba(255, 255, 255, 0) 0 53%, rgba(95, 190, 248, 0.34) 54% 61%, rgba(255, 255, 255, 0) 63%);
-  opacity: 0.9;
+.landing-hero-background-slide {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  opacity: 0;
+  animation: landingHeroImageCycle 14s infinite;
 }
 
-.landing-hero::after {
-  bottom: -32px;
-  height: 160px;
-  background:
-    radial-gradient(ellipse at 72% 24%, rgba(255, 255, 255, 0.78) 0 8%, rgba(255, 255, 255, 0) 38%),
-    linear-gradient(180deg, rgba(174, 224, 255, 0), rgba(103, 198, 255, 0.64)),
-    linear-gradient(178deg, rgba(255, 255, 255, 0) 0 44%, rgba(255, 255, 255, 0.58) 45% 52%, rgba(255, 255, 255, 0) 54%);
+@keyframes landingHeroImageCycle {
+  0%,
+  14.285% {
+    opacity: 0.5;
+  }
+
+  14.286%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .landing-hero-copy,
@@ -2709,10 +2714,11 @@ body::after {
   -webkit-background-clip: text;
   background-clip: text;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: clamp(26px, 3.1vw, 46px);
+  font-size: clamp(29px, 3.1vw, 49px);
   font-weight: 950;
   line-height: 1.12;
   letter-spacing: 0;
+  -webkit-text-stroke: 1px rgba(10, 61, 145, 0.22);
   text-shadow: 0 12px 32px rgba(37, 136, 232, 0.12);
   word-break: keep-all;
 }

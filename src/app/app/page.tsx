@@ -556,6 +556,7 @@ function clearLocalUserData() {
 
 const CALENDAR_PHOTO_MAX_SIZE = 640;
 const CALENDAR_PHOTO_QUALITY = 0.76;
+const IMAGE_LOAD_TIMEOUT_MS = 20000;
 
 function isHeicPhoto(file: File) {
   return /hei(c|f)/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
@@ -574,28 +575,55 @@ function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const objectUrl = URL.createObjectURL(blob);
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('이미지 로딩 시간이 초과되었습니다.'));
+      }
+    }, IMAGE_LOAD_TIMEOUT_MS);
 
     image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      }
     };
     image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('이미지 파일을 불러올 수 없습니다.'));
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('이미지 파일을 불러올 수 없습니다.'));
+      }
     };
     image.src = objectUrl;
   });
 }
 
 async function convertHeicToJpegBlob(file: File): Promise<Blob> {
-  const heic2anyModule = await import('heic2any');
+  let heic2anyModule;
+  try {
+    heic2anyModule = await import('heic2any');
+  } catch {
+    throw new Error('HEIC 변환 라이브러리를 불러올 수 없습니다.');
+  }
+
   const converted = await heic2anyModule.default({
     blob: file,
     toType: 'image/jpeg',
     quality: CALENDAR_PHOTO_QUALITY,
   });
 
-  return Array.isArray(converted) ? converted[0] : converted;
+  const result = Array.isArray(converted) ? converted[0] : converted;
+  if (!result || result.size === 0) {
+    throw new Error('HEIC 사진 변환에 실패했습니다.');
+  }
+  return result;
 }
 
 async function resizePhotoBlobToDataUrl(blob: Blob): Promise<string> {
@@ -611,20 +639,46 @@ async function resizePhotoBlobToDataUrl(blob: Blob): Promise<string> {
   }
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', CALENDAR_PHOTO_QUALITY);
+  const dataUrl = canvas.toDataURL('image/jpeg', CALENDAR_PHOTO_QUALITY);
+
+  // 모바일 브라우저 canvas 크기 제한으로 빈 data URL이 반환되는 경우 대응
+  if (!dataUrl || dataUrl === 'data:' || dataUrl.length < 100) {
+    return readBlobAsDataUrl(blob);
+  }
+
+  return dataUrl;
 }
 
 async function readPhotoAsCalendarImage(file: File): Promise<string> {
+  // 1단계: 일반 이미지로 로드 시도
+  // (모바일에서 HEIC가 자동 변환된 경우, 브라우저가 바로 렌더링 가능)
   try {
-    const sourceBlob = isHeicPhoto(file) ? await convertHeicToJpegBlob(file) : file;
-    return await resizePhotoBlobToDataUrl(sourceBlob);
-  } catch (error) {
-    if (!isHeicPhoto(file) && file.type.startsWith('image/')) {
-      return readBlobAsDataUrl(file);
-    }
-
-    throw error instanceof Error ? error : new Error('사진을 읽을 수 없습니다.');
+    return await resizePhotoBlobToDataUrl(file);
+  } catch {
+    // 일반 로드 실패 → HEIC 변환 시도
   }
+
+  // 2단계: HEIC 변환 시도
+  // (HEIC로 감지된 파일이거나, 일반 로드가 실패한 미지원 포맷인 경우)
+  if (isHeicPhoto(file) || !file.type || file.type === 'application/octet-stream') {
+    try {
+      const convertedBlob = await convertHeicToJpegBlob(file);
+      return await resizePhotoBlobToDataUrl(convertedBlob);
+    } catch {
+      // HEIC 변환도 실패 → 최후의 수단
+    }
+  }
+
+  // 3단계: data URL로 직접 읽기 (최후의 수단)
+  if (file.type.startsWith('image/') || !file.type) {
+    try {
+      return await readBlobAsDataUrl(file);
+    } catch {
+      // 모든 방법 실패
+    }
+  }
+
+  throw new Error('사진을 읽을 수 없습니다. 다른 이미지로 시도해주세요.');
 }
 
 function loadState(): GameState {
@@ -979,6 +1033,9 @@ export default function Home() {
       <div className="app-container">
         {/* 헤더 */}
         <header className="app-header">
+          <Link className="app-landing-link" href="/" aria-label="랜딩페이지로 돌아가기">
+            <span aria-hidden="true">{'<'}</span>
+          </Link>
           <div className="app-header-copy">
             <div className="app-logo-mark" aria-hidden="true">
               <span />
@@ -990,9 +1047,6 @@ export default function Home() {
               <span className="app-title-wave" aria-hidden="true" />
             </h1>
             <p className="app-subtitle">수영 기록부터 목표 관리, AI 코칭까지 한곳에서 관리하는 나만의 수영 캘린더</p>
-            <Link className="app-landing-link" href="/">
-              랜딩페이지로 돌아가기
-            </Link>
           </div>
           <div className="app-header-visual" aria-hidden="true">
             <img src="/images/swim-hero-athlete.png" alt="" />
@@ -1222,6 +1276,7 @@ function HomeTab({
   const [calendarMonth, setCalendarMonth] = useState(initialCalendarMonth.month);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [calendarDraft, setCalendarDraft] = useState<CalendarDayEntry>({});
+  const [photoProcessing, setPhotoProcessing] = useState(false);
   const today = new Date();
   const { firstWeekday, days } = getMonthDates(calendarYear, calendarMonth);
   const calendarMonthKey = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}`;
@@ -1260,12 +1315,14 @@ function HomeTab({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setPhotoProcessing(true);
     try {
       const imageDataUrl = await readPhotoAsCalendarImage(file);
       setCalendarDraft((prev) => ({ ...prev, photo: imageDataUrl }));
     } catch {
       alert('사진을 저장하지 못했습니다. 다른 이미지로 다시 시도해주세요.');
     } finally {
+      setPhotoProcessing(false);
       event.target.value = '';
     }
   };
@@ -1387,7 +1444,9 @@ function HomeTab({
             </div>
 
             <div className="calendar-detail-photo">
-              {calendarDraft.photo ? (
+              {photoProcessing ? (
+                <div className="calendar-detail-photo-empty">사진 처리 중... 잠시만 기다려주세요.</div>
+              ) : calendarDraft.photo ? (
                 <img src={calendarDraft.photo} alt={`${selectedCalendarDate} 수영 사진 미리보기`} />
               ) : (
                 <div className="calendar-detail-photo-empty">사진을 첨부해 기록을 남겨보세요</div>
@@ -1395,16 +1454,17 @@ function HomeTab({
             </div>
 
             <div className="calendar-detail-actions">
-              <label className="btn-calendar-photo btn-calendar-photo-upload">
-                사진 첨부
+              <label className={`btn-calendar-photo btn-calendar-photo-upload ${photoProcessing ? 'disabled' : ''}`}>
+                {photoProcessing ? '처리 중...' : '사진 첨부'}
                 <input
                   className="calendar-photo-input"
                   type="file"
                   accept="image/*,.heic,.heif"
                   onChange={handleCalendarPhotoChange}
+                  disabled={photoProcessing}
                 />
               </label>
-              {calendarDraft.photo && (
+              {calendarDraft.photo && !photoProcessing && (
                 <button className="btn-calendar-photo ghost" type="button" onClick={handleRemoveCalendarPhoto}>
                   사진 삭제
                 </button>

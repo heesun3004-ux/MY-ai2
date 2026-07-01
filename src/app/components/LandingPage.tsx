@@ -1,6 +1,16 @@
 import Link from 'next/link';
 import TopAuthControls from './TopAuthControls';
 
+const landingHeroImages = [
+  '/images/landing-hero-pool-1.png',
+  '/images/landing-hero-pool-2.png',
+  '/images/landing-hero-pool-3.png',
+  '/images/landing-hero-pool-4.png',
+  '/images/landing-hero-pool-5.png',
+  '/images/landing-hero-pool-6.png',
+  '/images/landing-hero-pool-7.png',
+];
+
 const highlights = [
   {
     label: 'Calendar',
@@ -34,6 +44,18 @@ export default function LandingPage() {
     <main className="landing-page">
       <TopAuthControls />
       <section className="landing-hero">
+        <div className="landing-hero-background" aria-hidden="true">
+          {landingHeroImages.map((image, index) => (
+            <span
+              className="landing-hero-background-slide"
+              key={image}
+              style={{
+                animationDelay: `${index * 2}s`,
+                backgroundImage: `url(${image})`,
+              }}
+            />
+          ))}
+        </div>
         <div className="landing-hero-copy">
           <div className="app-logo-mark landing-logo-mark" aria-hidden="true">
             <span />
@@ -43,8 +65,8 @@ export default function LandingPage() {
           <p className="landing-eyebrow">Swim Log</p>
           <h1 className="landing-title">나만의 수영기록</h1>
           <p className="landing-description">
-            수영 캘린더, 전국 수영일주, 이달의 목표, AI 코칭을 한 흐름으로 연결해
-            오늘의 운동이 다음 코스로 이어지게 만듭니다.
+            오늘의 수영 기록이 캘린더에 쌓이고, 이달의 목표와 전국 수영일주 코스로
+            이어집니다. AI 코칭으로 다음 훈련까지 자연스럽게 계획해보세요.
           </p>
          </div>
 
@@ -53,7 +75,11 @@ export default function LandingPage() {
       <section id="features" className="landing-section">
         <div className="landing-section-heading">
           <p className="landing-eyebrow">Core Features</p>
-          <h2>기록, 도전, 코칭이 같은 물결 안에 있어요</h2>
+          <h2>
+            수영 기록을 쌓고, 목표를 달성하세요.
+            <br />
+            AI 코치가 당신에게 맞는 훈련 방향을 제안합니다.
+          </h2>
         </div>
         <div className="landing-feature-grid">
           {highlights.map((item) => (
