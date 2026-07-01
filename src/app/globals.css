@@ -423,6 +423,52 @@ body::after {
   font-weight: 800;
 }
 
+.sync-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(161, 205, 239, 0.74);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--water-shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.sync-panel strong,
+.sync-panel span {
+  display: block;
+}
+
+.sync-panel strong {
+  color: var(--water-ink);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.sync-panel span {
+  margin-top: 3px;
+  color: var(--water-muted);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.sync-panel button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--water-blue) 0%, var(--water-sky) 100%);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 950;
+  padding: 0 12px;
+}
+
 .app-logo-mark {
   position: relative;
   width: 68px;
@@ -2436,6 +2482,17 @@ body::after {
 
   .auth-form {
     grid-template-columns: 1fr;
+  }
+
+  .sync-panel {
+    display: block;
+    margin-bottom: 14px;
+    padding: 10px;
+  }
+
+  .sync-panel button {
+    width: 100%;
+    margin-top: 10px;
   }
 
   .auth-panel.logged-in {

@@ -1,16 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useCallback, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
+  type DocumentData,
+  type DocumentSnapshot,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
+  type QuerySnapshot,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -398,50 +401,40 @@ function serializeRemoteDate(value: unknown) {
   return undefined;
 }
 
-async function loadRemoteUserData(userId: string) {
-  const firebase = getFirebaseServices();
-  if (!firebase) return null;
-
-  const [stateResult, calendarResult, goalsResult] = await Promise.all([
-    getDoc(doc(firebase.db, 'users', userId, 'appState', 'current')),
-    getDocs(collection(firebase.db, 'users', userId, 'calendarEntries')),
-    getDocs(query(collection(firebase.db, 'users', userId, 'monthlyGoals'), orderBy('position', 'asc'))),
-  ]);
-
-  const calendarEntries: CalendarEntries = Object.fromEntries(
-    calendarResult.docs.map((entryDoc) => {
+function buildCalendarEntriesFromSnapshot(snapshot: QuerySnapshot<DocumentData>): CalendarEntries {
+  return Object.fromEntries(
+    snapshot.docs.map((entryDoc) => {
       const entry = entryDoc.data();
       return [
         entryDoc.id,
-      {
-        photo: entry.photo ?? undefined,
-        photoPath: entry.photoPath ?? undefined,
-        distance: entry.distance ?? undefined,
-        duration: entry.duration ?? undefined,
-        heartRate: entry.heartRate ?? undefined,
-        poolLength: entry.poolLength ?? undefined,
-        updatedAt: serializeRemoteDate(entry.updatedAt),
-      },
+        {
+          photo: entry.photo ?? undefined,
+          photoPath: entry.photoPath ?? undefined,
+          distance: entry.distance ?? undefined,
+          duration: entry.duration ?? undefined,
+          heartRate: entry.heartRate ?? undefined,
+          poolLength: entry.poolLength ?? undefined,
+          updatedAt: serializeRemoteDate(entry.updatedAt),
+        },
       ];
     })
   );
+}
 
-  const goals = goalsResult.docs.map((goalDoc) => {
+function buildMonthlyGoalsFromSnapshot(snapshot: QuerySnapshot<DocumentData>): MonthlyGoal[] {
+  return snapshot.docs.map((goalDoc) => {
     const goal = goalDoc.data();
     return {
-    id: goalDoc.id,
-    text: goal.text ?? '',
-    completed: Boolean(goal.completed),
+      id: goalDoc.id,
+      text: goal.text ?? '',
+      completed: Boolean(goal.completed),
     };
   });
-  const remoteState = stateResult.exists() ? stateResult.data().state : null;
+}
 
-  return {
-    state: remoteState ? normalizeGameState(remoteState as Partial<GameState>) : null,
-    calendarEntries,
-    goals: goals.length > 0 ? normalizeMonthlyGoals(goals) : null,
-    hasCloudData: Boolean(remoteState || Object.keys(calendarEntries).length > 0 || goals.length > 0),
-  };
+function getRemoteStateFromSnapshot(snapshot: DocumentSnapshot<DocumentData>) {
+  if (!snapshot.exists()) return null;
+  return normalizeGameState(snapshot.data().state as Partial<GameState>);
 }
 
 async function saveRemoteGameState(userId: string, state: GameState) {
@@ -759,6 +752,9 @@ export default function Home() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const firebaseReady = isFirebaseConfigured();
+  const hadRemoteGameStateRef = useRef(false);
+  const hadRemoteCalendarEntriesRef = useRef(false);
+  const hadRemoteGoalsRef = useRef(false);
 
   // AI 코치에게 전달할 수영 기록 요약 생성
   const buildSwimmingContext = (s: GameState, entries: CalendarEntries): string => {
@@ -867,42 +863,91 @@ export default function Home() {
       return;
     }
 
-    let isActive = true;
-    setSyncStatus('계정 기록을 불러오는 중...');
+    const firebase = getFirebaseServices();
+    if (!firebase) return;
 
-    loadRemoteUserData(user.uid)
-      .then((remoteData) => {
-        if (!isActive || !remoteData) return;
+    hadRemoteGameStateRef.current = false;
+    hadRemoteCalendarEntriesRef.current = false;
+    hadRemoteGoalsRef.current = false;
+    setSyncStatus('계정 기록을 실시간 동기화하는 중...');
 
-        if (remoteData.hasCloudData) {
-          if (remoteData.state) {
-            setState(remoteData.state);
-            saveState(remoteData.state);
-          }
-          if (Object.keys(remoteData.calendarEntries).length > 0) {
-            setCalendarEntries(remoteData.calendarEntries);
-            saveCalendarEntries(remoteData.calendarEntries);
-          }
-          if (remoteData.goals) {
-            setMonthlyGoals(remoteData.goals);
-            saveMonthlyGoals(remoteData.goals);
-          }
-          setSyncStatus('계정 기록을 불러왔습니다.');
-        } else {
-          setSyncStatus('계정에 저장된 기록이 아직 없습니다.');
+    const stateRef = doc(firebase.db, 'users', user.uid, 'appState', 'current');
+    const calendarRef = collection(firebase.db, 'users', user.uid, 'calendarEntries');
+    const goalsRef = query(collection(firebase.db, 'users', user.uid, 'monthlyGoals'), orderBy('position', 'asc'));
+
+    const unsubscribeState = onSnapshot(
+      stateRef,
+      (snapshot) => {
+        const remoteState = getRemoteStateFromSnapshot(snapshot);
+
+        if (remoteState) {
+          hadRemoteGameStateRef.current = true;
+          setState(remoteState);
+          saveState(remoteState);
+          setHasPendingMigration(false);
+          setSyncStatus('계정 기록이 최신 상태입니다.');
+          return;
         }
 
-        setHasPendingMigration(hasLocalDataToMigrate());
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setSyncStatus('계정 기록을 불러오지 못했습니다. Firebase 설정을 확인해주세요.');
-      });
+        if (!hasPendingMigration || hadRemoteGameStateRef.current) {
+          const defaultState = getDefaultState();
+          setState(defaultState);
+          saveState(defaultState);
+        }
+        setSyncStatus((prev) => prev || '계정에 저장된 기록이 아직 없습니다.');
+      },
+      () => setSyncStatus('계정 기록을 불러오지 못했습니다. Firebase 설정과 보안 규칙을 확인해주세요.')
+    );
+
+    const unsubscribeCalendar = onSnapshot(
+      calendarRef,
+      (snapshot) => {
+        if (snapshot.empty) {
+          if (!hasPendingMigration || hadRemoteCalendarEntriesRef.current) {
+            setCalendarEntries({});
+            saveCalendarEntries({});
+          }
+          return;
+        }
+
+        const remoteCalendarEntries = buildCalendarEntriesFromSnapshot(snapshot);
+        hadRemoteCalendarEntriesRef.current = true;
+        setCalendarEntries(remoteCalendarEntries);
+        saveCalendarEntries(remoteCalendarEntries);
+        setHasPendingMigration(false);
+        setSyncStatus('캘린더 기록이 최신 상태입니다.');
+      },
+      () => setSyncStatus('캘린더 기록을 불러오지 못했습니다. Firebase 설정과 보안 규칙을 확인해주세요.')
+    );
+
+    const unsubscribeGoals = onSnapshot(
+      goalsRef,
+      (snapshot) => {
+        if (snapshot.empty) {
+          if (!hasPendingMigration || hadRemoteGoalsRef.current) {
+            const defaultGoals = getDefaultMonthlyGoals();
+            setMonthlyGoals(defaultGoals);
+            saveMonthlyGoals(defaultGoals);
+          }
+          return;
+        }
+
+        const remoteGoals = normalizeMonthlyGoals(buildMonthlyGoalsFromSnapshot(snapshot));
+        hadRemoteGoalsRef.current = true;
+        setMonthlyGoals(remoteGoals);
+        saveMonthlyGoals(remoteGoals);
+        setHasPendingMigration(false);
+        setSyncStatus('목표가 최신 상태입니다.');
+      },
+      () => setSyncStatus('목표를 불러오지 못했습니다. Firebase 설정과 보안 규칙을 확인해주세요.')
+    );
 
     return () => {
-      isActive = false;
+      unsubscribeState();
+      unsubscribeCalendar();
+      unsubscribeGoals();
     };
-  }, [mounted, user]);
+  }, [hasPendingMigration, mounted, user]);
 
   const updateState = useCallback((updater: (prev: GameState) => GameState) => {
     setState((prev) => {
@@ -1099,6 +1144,33 @@ export default function Home() {
           <button className={`tab-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => handleTabChange('map')}>전국 수영일주</button>
           <button className={`tab-btn ${activeTab === 'badges' ? 'active' : ''}`} onClick={() => handleTabChange('badges')}>이달의 목표</button>
         </nav>
+
+        <div className="sync-panel" aria-live="polite">
+          <div>
+            <strong>
+              {!firebaseReady
+                ? 'Firebase 설정 필요'
+                : authLoading
+                  ? '로그인 확인 중...'
+                  : user
+                    ? `${user.email ?? '로그인 계정'}`
+                    : '로그인이 필요합니다'}
+            </strong>
+            <span>
+              {!firebaseReady
+                ? 'NEXT_PUBLIC_FIREBASE_* 환경변수가 없으면 기록은 이 기기에만 저장됩니다.'
+                : syncStatus ||
+                (user
+                  ? '계정 기록을 확인하고 있습니다.'
+                  : '휴대폰과 노트북에서 같은 기록을 보려면 Google 계정으로 로그인해주세요.')}
+            </span>
+          </div>
+          {user && !user.isLocalTest && hasPendingMigration && (
+            <button type="button" onClick={handleMigrateLocalData}>
+              이 기기 기록 계정으로 옮기기
+            </button>
+          )}
+        </div>
 
         {/* 홈 탭 */}
         {activeTab === 'home' && (
