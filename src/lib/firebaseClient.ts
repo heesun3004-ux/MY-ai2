@@ -2,7 +2,6 @@ import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, signInWithPopup, type User } from 'firebase/auth';
 import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 function getFirebaseConfig() {
   return {
@@ -48,7 +47,6 @@ export function getFirebaseServices() {
     app,
     auth: getAuth(app),
     db: getFirestore(app),
-    storage: getStorage(app),
   };
 }
 

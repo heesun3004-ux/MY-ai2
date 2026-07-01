@@ -15,7 +15,6 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { REGIONS, getCourseName, formatDistanceExact, RegionData } from '@/lib/gameData';
 import { getFirebaseServices, isFirebaseConfigured, upsertUserProfile } from '@/lib/firebaseClient';
 import RouteMap from '../components/RouteMap';
@@ -391,36 +390,6 @@ function hasLocalDataToMigrate() {
   }
 }
 
-function dataUrlToBlob(dataUrl: string) {
-  const [meta, base64Data] = dataUrl.split(',');
-  const mimeType = meta.match(/data:(.*?);base64/)?.[1] ?? 'image/jpeg';
-  const binary = atob(base64Data);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return new Blob([bytes], { type: mimeType });
-}
-
-async function uploadCalendarPhoto(userId: string, dateKey: string, dataUrl: string) {
-  const firebase = getFirebaseServices();
-  if (!firebase || !dataUrl.startsWith('data:')) {
-    return { photo: dataUrl, photoPath: undefined };
-  }
-
-  const blob = dataUrlToBlob(dataUrl);
-  const path = `calendar-photos/${userId}/${dateKey}-${Date.now()}.jpg`;
-  const photoRef = ref(firebase.storage, path);
-  await uploadBytes(photoRef, blob, {
-    contentType: blob.type || 'image/jpeg',
-  });
-  const downloadUrl = await getDownloadURL(photoRef);
-
-  return { photo: downloadUrl, photoPath: path };
-}
-
 function serializeRemoteDate(value: unknown) {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
@@ -549,8 +518,14 @@ function clearLocalUserData() {
   localStorage.removeItem(MONTHLY_GOALS_KEY);
 }
 
-const CALENDAR_PHOTO_MAX_SIZE = 640;
-const CALENDAR_PHOTO_QUALITY = 0.76;
+const CALENDAR_PHOTO_MAX_SIZE = 520;
+const CALENDAR_PHOTO_QUALITY = 0.68;
+const FIRESTORE_PHOTO_DATA_URL_MAX_LENGTH = 760_000;
+const FIRESTORE_PHOTO_VARIANTS = [
+  { maxSize: CALENDAR_PHOTO_MAX_SIZE, quality: CALENDAR_PHOTO_QUALITY },
+  { maxSize: 420, quality: 0.62 },
+  { maxSize: 320, quality: 0.58 },
+];
 const IMAGE_LOAD_TIMEOUT_MS = 20000;
 
 function isHeicPhoto(file: File) {
@@ -656,7 +631,7 @@ async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   return result;
 }
 
-function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob || blob.size === 0) {
@@ -664,37 +639,50 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
         return;
       }
       resolve(blob);
-    }, 'image/jpeg', CALENDAR_PHOTO_QUALITY);
+    }, 'image/jpeg', quality);
   });
 }
 
 async function resizePhotoBlobToDataUrl(blob: Blob): Promise<string> {
   const image = await loadImageFromBlob(blob);
-  const scale = Math.min(CALENDAR_PHOTO_MAX_SIZE / image.width, CALENDAR_PHOTO_MAX_SIZE / image.height, 1);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(image.width * scale));
-  canvas.height = Math.max(1, Math.round(image.height * scale));
 
-  const context = canvas.getContext('2d');
-  if (!context) {
-    return assertRenderableImageDataUrl(await readBlobAsDataUrl(blob));
-  }
+  let fallbackDataUrl = '';
+  for (const variant of FIRESTORE_PHOTO_VARIANTS) {
+    const scale = Math.min(variant.maxSize / image.width, variant.maxSize / image.height, 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
 
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  try {
-    const resizedBlob = await canvasToJpegBlob(canvas);
-    return assertRenderableImageDataUrl(await readBlobAsDataUrl(resizedBlob));
-  } catch {
-    const dataUrl = canvas.toDataURL('image/jpeg', CALENDAR_PHOTO_QUALITY);
-
-    // 모바일 브라우저 canvas 크기 제한으로 빈 data URL이 반환되는 경우 대응
-    if (!dataUrl || dataUrl === 'data:' || dataUrl.length < 100) {
-      return assertRenderableImageDataUrl(await readBlobAsDataUrl(blob));
+    const context = canvas.getContext('2d');
+    if (!context) {
+      continue;
     }
 
-    return assertRenderableImageDataUrl(dataUrl);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    let dataUrl = '';
+    try {
+      const resizedBlob = await canvasToJpegBlob(canvas, variant.quality);
+      dataUrl = await readBlobAsDataUrl(resizedBlob);
+    } catch {
+      dataUrl = canvas.toDataURL('image/jpeg', variant.quality);
+    }
+
+    if (!dataUrl || dataUrl === 'data:' || dataUrl.length < 100) {
+      continue;
+    }
+
+    fallbackDataUrl = await assertRenderableImageDataUrl(dataUrl);
+    if (fallbackDataUrl.length <= FIRESTORE_PHOTO_DATA_URL_MAX_LENGTH) {
+      return fallbackDataUrl;
+    }
   }
+
+  if (fallbackDataUrl) {
+    return fallbackDataUrl;
+  }
+
+  return assertRenderableImageDataUrl(await readBlobAsDataUrl(blob));
 }
 
 async function readPhotoAsCalendarImage(file: File): Promise<string> {
@@ -930,12 +918,7 @@ export default function Home() {
   }, [user]);
 
   const saveCalendarEntry = async (dateKey: string, nextEntry: CalendarDayEntry | null) => {
-    let entryToSave = nextEntry;
-
-    if (user && !user.isLocalTest && entryToSave?.photo?.startsWith('data:')) {
-      const uploadedPhoto = await uploadCalendarPhoto(user.uid, dateKey, entryToSave.photo);
-      entryToSave = { ...entryToSave, ...uploadedPhoto };
-    }
+    const entryToSave = nextEntry;
 
     const nextEntries = { ...calendarEntries };
     if (entryToSave && Object.values(entryToSave).some(Boolean)) {
@@ -945,7 +928,7 @@ export default function Home() {
     }
 
     const didSave = saveCalendarEntries(nextEntries);
-    if (!didSave) {
+    if (!didSave && (!user || user.isLocalTest)) {
       throw new Error('사진 용량이 커서 저장하지 못했습니다.');
     }
 
@@ -953,7 +936,11 @@ export default function Home() {
 
     if (user && !user.isLocalTest) {
       await saveRemoteCalendarEntry(user.uid, dateKey, entryToSave);
-      setSyncStatus('캘린더 기록이 계정에 저장되었습니다.');
+      setSyncStatus(
+        didSave
+          ? '캘린더 기록이 계정에 저장되었습니다.'
+          : '캘린더 기록이 계정에 저장되었습니다. 이 기기 캐시는 사진 용량 때문에 생략됐습니다.'
+      );
     } else if (user?.isLocalTest) {
       setSyncStatus('로컬 테스트 계정에 저장되었습니다.');
     }
@@ -984,35 +971,23 @@ export default function Home() {
       const localState = loadState();
       const localCalendarEntries = loadCalendarEntries();
       const localGoals = loadMonthlyGoals();
-      const uploadedEntries: CalendarEntries = {};
-
-      for (const [dateKey, entry] of Object.entries(localCalendarEntries)) {
-        if (entry.photo?.startsWith('data:')) {
-          uploadedEntries[dateKey] = {
-            ...entry,
-            ...(await uploadCalendarPhoto(user.uid, dateKey, entry.photo)),
-          };
-        } else {
-          uploadedEntries[dateKey] = entry;
-        }
-      }
 
       await saveRemoteGameState(user.uid, localState);
       await Promise.all(
-        Object.entries(uploadedEntries).map(([dateKey, entry]) =>
+        Object.entries(localCalendarEntries).map(([dateKey, entry]) =>
           saveRemoteCalendarEntry(user.uid, dateKey, entry)
         )
       );
       await saveRemoteMonthlyGoals(user.uid, localGoals);
 
       setState(localState);
-      setCalendarEntries(uploadedEntries);
+      setCalendarEntries(localCalendarEntries);
       setMonthlyGoals(localGoals);
-      saveCalendarEntries(uploadedEntries);
+      saveCalendarEntries(localCalendarEntries);
       setHasPendingMigration(false);
       setSyncStatus('기존 기록을 계정으로 옮겼습니다.');
     } catch {
-      setSyncStatus('기존 기록 마이그레이션에 실패했습니다. Firebase 설정과 Storage 규칙을 확인해주세요.');
+      setSyncStatus('기존 기록 마이그레이션에 실패했습니다. Firestore 설정과 사진 용량을 확인해주세요.');
     }
   };
 
@@ -1247,7 +1222,7 @@ function HomeTab({
       await onSaveCalendarEntry(selectedCalendarDate, hasEntryData ? nextEntry : null);
       closeCalendarDetail();
     } catch {
-      alert('사진 또는 기록을 저장하지 못했습니다. Firebase 설정과 사진 용량을 확인해주세요.');
+      alert('사진 또는 기록을 저장하지 못했습니다. Firestore 설정과 사진 용량을 확인해주세요.');
     }
   };
 
