@@ -582,7 +582,7 @@ body::after {
   position: absolute;
   inset: -3px -14px -3px -18px;
   z-index: -1;
-  border-radius: 999px 0 0 999px;
+  border-radius: 999px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(225, 246, 255, 0.52)),
     linear-gradient(174deg, rgba(255, 255, 255, 0) 0 42%, rgba(90, 188, 246, 0.26) 43% 53%, rgba(255, 255, 255, 0) 55%),
