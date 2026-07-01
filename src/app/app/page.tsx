@@ -2,12 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useCallback, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
   deleteDoc,
@@ -22,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { REGIONS, getCourseName, formatDistanceExact, RegionData } from '@/lib/gameData';
-import { getFirebaseServices, isFirebaseConfigured } from '@/lib/firebaseClient';
+import { getFirebaseServices, isFirebaseConfigured, upsertUserProfile } from '@/lib/firebaseClient';
 import RouteMap from '../components/RouteMap';
 import ChatbotPopup from '../components/ChatbotPopup';
 import TopAuthControls from '../components/TopAuthControls';
@@ -799,6 +794,9 @@ export default function Home() {
 
     const unsubscribe = onAuthStateChanged(firebase.auth, (nextUser) => {
       setUser(nextUser ? { uid: nextUser.uid, email: nextUser.email } : null);
+      if (nextUser) {
+        void upsertUserProfile(nextUser);
+      }
       setAuthLoading(false);
     });
 
@@ -1091,169 +1089,6 @@ export default function Home() {
         swimmingContext={buildSwimmingContext(state, calendarEntries)}
       />
     </>
-  );
-}
-
-function AuthPanel({
-  user,
-  authLoading,
-  firebaseReady,
-  syncStatus,
-  hasPendingMigration,
-  onMigrate,
-  onLocalTestSignIn,
-  onLocalTestSignOut,
-}: {
-  user: AppUser | null;
-  authLoading: boolean;
-  firebaseReady: boolean;
-  syncStatus: string;
-  hasPendingMigration: boolean;
-  onMigrate: () => void;
-  onLocalTestSignIn: (email?: string) => void;
-  onLocalTestSignOut: () => void;
-}) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authMessage, setAuthMessage] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const firebase = getFirebaseServices();
-
-  const handleSignIn = async () => {
-    if (!firebase || !email || !password) return;
-
-    try {
-      setSubmitting(true);
-      setAuthMessage('');
-      await signInWithEmailAndPassword(firebase.auth, email, password);
-      setPassword('');
-      setAuthMessage('로그인되었습니다.');
-    } catch {
-      setAuthMessage('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSignUp = async () => {
-    if (!firebase || !email || !password) return;
-
-    try {
-      setSubmitting(true);
-      setAuthMessage('');
-      const credential = await createUserWithEmailAndPassword(firebase.auth, email, password);
-      if (credential.user) {
-        await setDoc(doc(firebase.db, 'users', credential.user.uid), {
-          email,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
-
-      setPassword('');
-      setAuthMessage('회원가입이 완료되었습니다.');
-    } catch {
-      setAuthMessage('회원가입에 실패했습니다. 이미 가입된 이메일인지 확인해주세요.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    if (user?.isLocalTest) {
-      onLocalTestSignOut();
-      setAuthMessage('로컬 테스트 계정에서 로그아웃되었습니다.');
-      return;
-    }
-
-    if (!firebase) return;
-    await signOut(firebase.auth);
-    setAuthMessage('로그아웃되었습니다. 이 기기의 로컬 기록은 유지됩니다.');
-  };
-
-  if (authLoading) {
-    return (
-      <div className="auth-panel">
-        <strong>계정 확인 중...</strong>
-      </div>
-    );
-  }
-
-  if (user) {
-    return (
-      <div className="auth-panel logged-in">
-        <div>
-          <strong>계정 저장 중</strong>
-          <p>{user.email}{user.isLocalTest ? ' · 로컬 테스트' : ''}</p>
-          {syncStatus && <span>{syncStatus}</span>}
-        </div>
-        <div className="auth-actions">
-          {hasPendingMigration && (
-            <button type="button" onClick={onMigrate}>
-              기존 기록 옮기기
-            </button>
-          )}
-          <button type="button" onClick={handleSignOut}>
-            로그아웃
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!firebaseReady) {
-    return (
-      <div className="auth-panel">
-        <strong>계정 저장 준비 필요</strong>
-        <p>Firebase 웹 앱 설정값을 `.env`에 추가하면 실제 로그인 저장을 사용할 수 있습니다.</p>
-        <div className="auth-form">
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="테스트 이메일"
-            autoComplete="email"
-          />
-        </div>
-        <div className="auth-actions">
-          <button type="button" onClick={() => onLocalTestSignIn(email || undefined)}>
-            로컬 테스트 로그인
-          </button>
-        </div>
-        <p>지금은 이 브라우저에서 로그인 UI와 기록 흐름만 테스트합니다.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="auth-panel">
-      <strong>로그인하면 기록이 계정에 저장돼요</strong>
-      <div className="auth-form">
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="이메일"
-          autoComplete="email"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="비밀번호"
-          autoComplete="current-password"
-        />
-      </div>
-      <div className="auth-actions">
-        <button type="button" onClick={handleSignIn} disabled={submitting || !email || !password}>
-          로그인
-        </button>
-        <button type="button" onClick={handleSignUp} disabled={submitting || !email || !password}>
-          회원가입
-        </button>
-      </div>
-      {(authMessage || syncStatus) && <p>{authMessage || syncStatus}</p>}
-    </div>
   );
 }
 
