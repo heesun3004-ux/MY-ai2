@@ -566,6 +566,36 @@ function readBlobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function loadImageFromSource(source: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('이미지 로딩 시간이 초과되었습니다.'));
+      }
+    }, IMAGE_LOAD_TIMEOUT_MS);
+
+    image.onload = () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(image);
+      }
+    };
+    image.onerror = () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(new Error('이미지 파일을 불러올 수 없습니다.'));
+      }
+    };
+    image.src = source;
+  });
+}
+
 function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -600,6 +630,11 @@ function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
+async function assertRenderableImageDataUrl(dataUrl: string) {
+  await loadImageFromSource(dataUrl);
+  return dataUrl;
+}
+
 async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   let heic2anyModule;
   try {
@@ -621,6 +656,18 @@ async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   return result;
 }
 
+function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob || blob.size === 0) {
+        reject(new Error('사진 변환에 실패했습니다.'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/jpeg', CALENDAR_PHOTO_QUALITY);
+  });
+}
+
 async function resizePhotoBlobToDataUrl(blob: Blob): Promise<string> {
   const image = await loadImageFromBlob(blob);
   const scale = Math.min(CALENDAR_PHOTO_MAX_SIZE / image.width, CALENDAR_PHOTO_MAX_SIZE / image.height, 1);
@@ -630,21 +677,40 @@ async function resizePhotoBlobToDataUrl(blob: Blob): Promise<string> {
 
   const context = canvas.getContext('2d');
   if (!context) {
-    return readBlobAsDataUrl(blob);
+    return assertRenderableImageDataUrl(await readBlobAsDataUrl(blob));
   }
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', CALENDAR_PHOTO_QUALITY);
 
-  // 모바일 브라우저 canvas 크기 제한으로 빈 data URL이 반환되는 경우 대응
-  if (!dataUrl || dataUrl === 'data:' || dataUrl.length < 100) {
-    return readBlobAsDataUrl(blob);
+  try {
+    const resizedBlob = await canvasToJpegBlob(canvas);
+    return assertRenderableImageDataUrl(await readBlobAsDataUrl(resizedBlob));
+  } catch {
+    const dataUrl = canvas.toDataURL('image/jpeg', CALENDAR_PHOTO_QUALITY);
+
+    // 모바일 브라우저 canvas 크기 제한으로 빈 data URL이 반환되는 경우 대응
+    if (!dataUrl || dataUrl === 'data:' || dataUrl.length < 100) {
+      return assertRenderableImageDataUrl(await readBlobAsDataUrl(blob));
+    }
+
+    return assertRenderableImageDataUrl(dataUrl);
   }
-
-  return dataUrl;
 }
 
 async function readPhotoAsCalendarImage(file: File): Promise<string> {
+  const isHeic = isHeicPhoto(file);
+
+  if (isHeic) {
+    try {
+      return await resizePhotoBlobToDataUrl(file);
+    } catch {
+      // 브라우저가 HEIC를 직접 디코딩하지 못하면 JPEG로 변환한다.
+    }
+
+    const convertedBlob = await convertHeicToJpegBlob(file);
+    return resizePhotoBlobToDataUrl(convertedBlob);
+  }
+
   // 1단계: 일반 이미지로 로드 시도
   // (모바일에서 HEIC가 자동 변환된 경우, 브라우저가 바로 렌더링 가능)
   try {
@@ -655,7 +721,7 @@ async function readPhotoAsCalendarImage(file: File): Promise<string> {
 
   // 2단계: HEIC 변환 시도
   // (HEIC로 감지된 파일이거나, 일반 로드가 실패한 미지원 포맷인 경우)
-  if (isHeicPhoto(file) || !file.type || file.type === 'application/octet-stream') {
+  if (!file.type || file.type === 'application/octet-stream') {
     try {
       const convertedBlob = await convertHeicToJpegBlob(file);
       return await resizePhotoBlobToDataUrl(convertedBlob);
@@ -667,7 +733,7 @@ async function readPhotoAsCalendarImage(file: File): Promise<string> {
   // 3단계: data URL로 직접 읽기 (최후의 수단)
   if (file.type.startsWith('image/') || !file.type) {
     try {
-      return await readBlobAsDataUrl(file);
+      return await assertRenderableImageDataUrl(await readBlobAsDataUrl(file));
     } catch {
       // 모든 방법 실패
     }
